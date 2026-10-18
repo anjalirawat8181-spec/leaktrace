@@ -450,7 +450,7 @@ export function generateVectors(
   return vectors;
 }
 
-function permutationAt(items: string[], rank: number): number[] {
+export function permutationAt(items: string[], rank: number): number[] {
   const available = items.map((_, index) => index);
   const permutation: number[] = [];
   let remainder = rank;
@@ -905,4 +905,29 @@ export function detectLeak(
       oneIn: expectedFalseMatches > 0 ? 1 / expectedFalseMatches : null,
     },
   };
+}
+
+/**
+ * detectLeak reports positions in the normalised text (NFKC, lowercase, collapsed whitespace).
+ * This maps such a range back onto the original text so it can be highlighted in a UI.
+ */
+export function mapNormalizedRange(
+  original: string,
+  range: { start: number; end: number },
+): { start: number; end: number } {
+  // Length of the normalised text up to original index i (monotonic in i).
+  const prefixLength = (i: number) => normalizeText(`${original.slice(0, i)}|`).length - 1;
+  const firstIndexReaching = (target: number): number => {
+    let low = 0;
+    let high = original.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (prefixLength(mid) >= target) high = mid;
+      else low = mid + 1;
+    }
+    return low;
+  };
+  const start = firstIndexReaching(range.start + 1) - 1;
+  const end = firstIndexReaching(range.end);
+  return { start: Math.max(0, start), end: Math.max(start + 1, end) };
 }

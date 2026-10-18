@@ -6,7 +6,7 @@ import {
 } from '@codemirror/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, type CapacityInfo, type ExamDetail, type User } from '../api';
 
 const pointMatcher = new MatchDecorator({
@@ -26,6 +26,7 @@ const highlightPoints = ViewPlugin.fromClass(
 function DslEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>();
+  const syncing = useRef(false); // true while loading server text, which is not a user edit
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -38,7 +39,9 @@ function DslEditor({ value, onChange, readOnly }: { value: string; onChange: (v:
           lineNumbers(), history(), keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping, highlightPoints,
           EditorState.readOnly.of(readOnly),
-          EditorView.updateListener.of((u) => u.docChanged && onChangeRef.current(u.state.doc.toString())),
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged && !syncing.current) onChangeRef.current(u.state.doc.toString());
+          }),
         ],
       }),
     });
@@ -51,7 +54,9 @@ function DslEditor({ value, onChange, readOnly }: { value: string; onChange: (v:
   useEffect(() => {
     const v = view.current;
     if (v && v.state.doc.toString() !== value && !v.hasFocus) {
+      syncing.current = true;
       v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } });
+      syncing.current = false;
     }
   }, [value]);
 
@@ -170,6 +175,8 @@ export default function EditorPage({ user }: { user: User }) {
         </div>
         {user.role === 'CONTROLLER' && (
           <div className="ml-auto flex gap-2">
+            <Link className="btn" to={`/exams/${id}/generation`}>Generation</Link>
+            <Link className="btn" to={`/exams/${id}/schedule`}>Schedule</Link>
             <button className="btn" disabled={!e.template || spot.isPending} onClick={() => spot.mutate()}>
               Spot the difference
             </button>

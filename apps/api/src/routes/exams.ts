@@ -9,6 +9,7 @@ import { requireAuth, requireRole } from '../auth';
 import { config } from '../config';
 import { audit, getPool, query } from '../db';
 import { wordDiff } from '../diff';
+import { scheduleInfo } from './schedule';
 
 export const examsRouter = Router();
 examsRouter.use(requireAuth);
@@ -97,7 +98,8 @@ examsRouter.get('/:id', requireRole('CONTROLLER', 'AUDITOR'), async (req, res) =
       ...capacityInfo(parsed, seats),
     };
   }
-  res.json({ ...examJson(exam), totalCopies: seats, maxCopies: config.maxCopies, template });
+  const schedule = ['SCHEDULED', 'RELEASED', 'CLOSED'].includes(exam.status) ? scheduleInfo(exam) : null;
+  res.json({ ...examJson(exam), totalCopies: seats, maxCopies: config.maxCopies, template, schedule });
 });
 
 // Live editor feedback: parse without saving; also renders copy #1 as a preview.

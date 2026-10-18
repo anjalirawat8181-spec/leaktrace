@@ -6,14 +6,15 @@
     "apps/*"
   ],
   "scripts": {
-    "build:packages": "npm run build --workspace @leaktrace/fingerprint && npm run build --workspace @leaktrace/shared",
+    "build:packages": "npm run build --workspace @leaktrace/fingerprint && npm run build --workspace @leaktrace/shared && npm run build --workspace @leaktrace/adapters && npm run build --workspace @leaktrace/pdf",
     "db:up": "docker compose up -d --wait",
     "migrate": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js -m db/migrations up",
     "seed": "npm run build:packages && tsx --env-file=.env db/seed/seed.ts",
-    "dev": "npm run db:up && npm run migrate && npm run build:packages && concurrently -n api,web \"npm run dev --workspace @leaktrace/api\" \"npm run dev --workspace @leaktrace/web\"",
+    "dev": "npm run db:up && npm run migrate && npm run build:packages && concurrently -n api,worker,web \"npm run dev --workspace @leaktrace/api\" \"npm run dev --workspace @leaktrace/worker\" \"npm run dev --workspace @leaktrace/web\"",
     "db:test": "node db/setup-test-db.mjs",
-    "test": "npm run test --workspace @leaktrace/fingerprint && npm run test --workspace @leaktrace/api",
-    "fp:demo": "npm run fp:demo --workspace @leaktrace/fingerprint --"
+    "test": "npm run test --workspace @leaktrace/fingerprint && npm run test --workspace @leaktrace/api && npm run test --workspace @leaktrace/worker",
+    "fp:demo": "npm run fp:demo --workspace @leaktrace/fingerprint --",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -22,6 +23,7 @@
     "concurrently": "^9.0.0",
     "node-pg-migrate": "^7.9.0",
     "pg": "^8.13.0",
+    "puppeteer-core": "^23.11.1",
     "tsx": "^4.19.0"
   }
 }

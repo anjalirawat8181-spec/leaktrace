@@ -10,10 +10,11 @@ async function main() {
   const hash = await bcrypt.hash(password, 12);
 
   const centreIds: string[] = [];
-  for (const [code, name, city] of [
-    ['C1', 'North Campus Centre', 'Pune'],
-    ['C2', 'South Campus Centre', 'Mumbai'],
-  ]) {
+  const centres: Array<[string, string, string, [string, string]]> = [
+    ['C1', 'North Campus Centre', 'Pune', ['A. Sharma', 'B. Iyer']],
+    ['C2', 'South Campus Centre', 'Mumbai', ['C. Nair', 'D. Gupta']],
+  ];
+  for (const [code, name, city, invigilators] of centres) {
     const { rows } = await pool.query(
       `INSERT INTO centres (code, name, city) VALUES ($1,$2,$3)
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
@@ -22,10 +23,10 @@ async function main() {
     centreIds.push(rows[0].id);
     const existing = await pool.query('SELECT 1 FROM rooms WHERE centre_id=$1', [rows[0].id]);
     if (!existing.rowCount) {
-      for (const [i, inv] of [['Room 1', 'A. Sharma'], ['Room 2', 'B. Iyer']].entries()) {
+      for (const [i, invigilator] of invigilators.entries()) {
         await pool.query(
           'INSERT INTO rooms (centre_id, name, seats, invigilator_name) VALUES ($1,$2,5,$3)',
-          [rows[0].id, `${code}-${inv[0]}`, `${inv[1]}${i ? ' (' + code + ')' : ''}`],
+          [rows[0].id, `${code}-Room ${i + 1}`, invigilator],
         );
       }
     }

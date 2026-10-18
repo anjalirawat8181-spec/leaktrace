@@ -23,7 +23,8 @@ body {
 .cm-editor { background: #07090b; border: 1px solid #1f272d; border-radius: 6px; font-size: 13px; }
 .cm-editor.cm-focused { outline: 1px solid #10b981; }
 .cm-content { font-family: ui-monospace, Menlo, Consolas, monospace; color: #c9d4dc; caret-color: #fff; }
-.cm-gutters { background: #0f1316; color: #6b7a86; border: none; }
+.cm-editor .cm-gutters { background: #0f1316; color: #6b7a86; border: none; }
+.cm-editor .cm-activeLineGutter { background: transparent; }
 .cm-point { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-radius: 3px; }
 .cm-directive { color: #34d399; font-weight: 600; }
 .diff-hit { background: rgba(245, 158, 11, 0.3); color: #fde68a; border-radius: 2px; }
