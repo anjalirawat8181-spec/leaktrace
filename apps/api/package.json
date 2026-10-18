@@ -1,0 +1,38 @@
+{
+  "name": "@leaktrace/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "tsx --env-file=../../.env src/server.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.mjs"
+  },
+  "dependencies": {
+    "@leaktrace/fingerprint": "*",
+    "@leaktrace/shared": "*",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.21.0",
+    "express-async-errors": "^3.1.1",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.11"
+  }
+}

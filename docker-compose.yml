@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: leaktrace
+      POSTGRES_PASSWORD: leaktrace
+      POSTGRES_DB: leaktrace
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leaktrace"]
+      interval: 2s
+      retries: 20
+volumes:
+  pgdata:
