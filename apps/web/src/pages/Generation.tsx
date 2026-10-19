@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { api, type ExamDetail } from '../api';
+import { QueryState } from '../components/QueryState';
+import {
+  Button, Card, CardHeader, Notice, PageHeader, ProgressBar, Skeleton, Stat, StatusBadge, LinkButton, buttonClass, cx,
+  Icon, useToast,
+} from '../components/ui';
 
 interface GenerationStatus {
   examStatus: string;
@@ -13,6 +19,7 @@ interface GenerationStatus {
 export default function GenerationPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const toast = useToast();
   const exam = useQuery({ queryKey: ['exam', id], queryFn: () => api<ExamDetail>(`/exams/${id}`) });
   const status = useQuery({
     queryKey: ['generation', id],
@@ -24,8 +31,14 @@ export default function GenerationPage() {
     qc.invalidateQueries({ queryKey: ['generation', id] });
     qc.invalidateQueries({ queryKey: ['exam', id] });
   };
-  const generate = useMutation({ mutationFn: () => api(`/exams/${id}/generate`, { method: 'POST' }), onSuccess: refresh });
-  const rerender = useMutation({ mutationFn: () => api(`/exams/${id}/rerender`, { method: 'POST' }), onSuccess: refresh });
+  const generate = useMutation({
+    mutationFn: () => api(`/exams/${id}/generate`, { method: 'POST' }),
+    onSuccess: () => { refresh(); toast.push('Generation queued', 'info'); },
+  });
+  const rerender = useMutation({
+    mutationFn: () => api(`/exams/${id}/rerender`, { method: 'POST' }),
+    onSuccess: () => { refresh(); toast.push('Re-render queued', 'info'); },
+  });
 
   const s = status.data;
   const job = s?.job;
@@ -34,55 +47,68 @@ export default function GenerationPage() {
   const blocked = !t ? 'Save a template first.' : !t.sufficient ? 'Template capacity is too low.' : '';
   const error = (generate.error ?? rerender.error) as Error | null;
   const workersOk = (s?.workers.inService ?? 0) > 0;
+  const done = job?.status === 'DONE';
+
+  useEffect(() => {
+    if (done) qc.invalidateQueries({ queryKey: ['exam', id] });
+  }, [done, id, qc]);
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center gap-3">
-        <Link to={`/exams/${id}`} className="font-mono text-sm text-lab-dim hover:text-white">← editor</Link>
-        <h2 className="font-mono text-lg">Generation · {exam.data?.title}</h2>
-      </div>
+    <div className="max-w-4xl">
+      <PageHeader
+        back={<LinkButton to={`/exams/${id}`} variant="ghost" icon="arrowleft" className="-ml-3">Back to editor</LinkButton>}
+        title={<>Generation{exam.data ? ` · ${exam.data.title}` : ''}</>}
+        subtitle={exam.data && <StatusBadge status={exam.data.status} />}
+      />
+      <QueryState query={status} skeleton={<Skeleton className="h-96" />}>
+        {(st) => (
+          <Card>
+            <CardHeader title="Copy generation"
+              action={
+                <span className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-raised px-3 py-1 text-xs font-medium"
+                  role="status">
+                  <span aria-hidden className={cx('size-2 rounded-full', workersOk ? 'bg-ok animate-pulse-dot' : 'bg-warn')} />
+                  {workersOk ? 'Worker online' : 'No worker online'}
+                </span>
+              }>
+              One merged PDF per room, rendered by the worker from the stored fingerprint vectors.
+            </CardHeader>
 
-      <div className="panel space-y-4">
-        <div>
-          <div className="flex justify-between font-mono text-xs mb-1">
-            <span>{job ? `${job.status} · ${job.done} / ${job.total} copies` : 'no job yet'}</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-3 rounded bg-lab-line overflow-hidden">
-            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
+            <div className="mb-6">
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <p className="data-num text-sm">{job ? `${job.status} · ${job.done} / ${job.total} copies` : 'no job yet'}</p>
+                <p className="data-num text-2xl font-semibold">{pct}%</p>
+              </div>
+              <ProgressBar label="Generation progress" value={pct} tone={job?.failed ? 'danger' : done ? 'ok' : 'info'} />
+            </div>
 
-        <dl className="grid grid-cols-3 gap-3 font-mono text-sm">
-          <div><dt className="label">Queue depth</dt><dd>{s?.queueDepth ?? '–'}</dd></div>
-          <div>
-            <dt className="label">Workers online</dt>
-            <dd className={workersOk ? 'text-emerald-400' : 'text-amber-400'}>
-              {s ? `${s.workers.inService} / ${s.workers.desired}` : '–'}
-            </dd>
-          </div>
-          <div>
-            <dt className="label">Dead letters</dt>
-            <dd className={s?.deadLetterDepth ? 'text-red-400' : ''}>{s?.deadLetterDepth ?? '–'}</dd>
-          </div>
-        </dl>
+            <dl className="grid gap-3 sm:grid-cols-3">
+              <Stat label="Queue depth" value={st.queueDepth} hint="messages waiting" />
+              <Stat label="Workers online" value={`${st.workers.inService} / ${st.workers.desired}`} tone={workersOk ? 'ok' : 'warn'} hint="heartbeat in the last 30 s" />
+              <Stat label="Dead letters" value={st.deadLetterDepth} tone={st.deadLetterDepth ? 'danger' : undefined} hint="failed after 3 tries" />
+            </dl>
 
-        {s && !workersOk && s.queueDepth > 0 && (
-          <p className="font-mono text-xs text-amber-400">No worker is running. Start one with: npm run dev --workspace @leaktrace/worker</p>
+            {!workersOk && st.queueDepth > 0 && (
+              <Notice className="mt-5">No worker is running. Start one with: <span className="data-num">npm run dev --workspace @leaktrace/worker</span></Notice>
+            )}
+            {blocked && <Notice className="mt-5">{blocked}</Notice>}
+            {error && <Notice tone="danger" className="mt-5">{error.message}</Notice>}
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button variant="primary" icon="cog" disabled={!!blocked || st.examStatus !== 'DRAFT'} loading={generate.isPending}
+                onClick={() => generate.mutate()}>Generate</Button>
+              <Button icon="refresh" disabled={!job} loading={rerender.isPending} onClick={() => rerender.mutate()}>Re-render</Button>
+              <a className={buttonClass('secondary', 'md', job ? '' : 'pointer-events-none opacity-50')}
+                href={`/api/exams/${id}/demo-set`} aria-disabled={!job} tabIndex={job ? undefined : -1}>
+                <Icon name="download" />Demo set (5 copies, zip)
+              </a>
+            </div>
+            <p className="mt-4 text-xs text-fg-muted">
+              Re-render rebuilds every PDF from the stored vectors; the output is byte-identical, which makes it a safe way to demo the worker.
+            </p>
+          </Card>
         )}
-
-        <div className="flex flex-wrap gap-2">
-          <button className="btn btn-primary" disabled={!!blocked || s?.examStatus !== 'DRAFT' || generate.isPending}
-            onClick={() => generate.mutate()}>Generate</button>
-          <button className="btn" disabled={!job || rerender.isPending} onClick={() => rerender.mutate()}>Re-render</button>
-          <a className={`btn ${job ? '' : 'pointer-events-none opacity-40'}`} href={`/api/exams/${id}/demo-set`}>Demo set (5 copies, zip)</a>
-        </div>
-        {blocked && <p className="font-mono text-xs text-amber-400">{blocked}</p>}
-        {error && <p className="font-mono text-sm text-red-400" role="alert">{error.message}</p>}
-        <p className="font-mono text-xs text-lab-dim">
-          Re-render rebuilds every PDF from the stored vectors; the output is byte-identical, which makes it a safe way to demo the worker.
-        </p>
-      </div>
+      </QueryState>
     </div>
   );
 }
