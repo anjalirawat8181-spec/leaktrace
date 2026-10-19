@@ -4,3 +4,5 @@ node_modules/
 coverage/
 .env
 data/
+.claude/skills/
+.claude/settings.local.json
