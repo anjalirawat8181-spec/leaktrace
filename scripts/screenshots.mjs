@@ -25,7 +25,7 @@ const WEB = `http://localhost:${WEB_PORT}`;
 const DB_NAME = 'leaktrace_shots';
 const DB_URL = `postgres://leaktrace:leaktrace@localhost:5434/${DB_NAME}`;
 const PASSWORD = process.env.DEMO_PASSWORD;
-const OUT = path.resolve(root, process.env.SCREENSHOT_DIR ?? path.join('docs', 'screenshots'));
+const OUT = path.resolve(root, process.env.SCREENSHOT_DIR ?? path.join('docs', 'screenshots', 'after'));
 const LOG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'leaktrace-shots-'));
 
 const env = {

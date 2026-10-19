@@ -14,7 +14,7 @@ There is **no AI or ML** anywhere: every feature is deterministic code.
 
 | | |
 |---|---|
-| ![Trace verdict](docs/screenshots/10-trace-verdict.png) | ![Paper editor](docs/screenshots/03-editor.png) |
+| ![Trace verdict](docs/screenshots/after/10-trace-verdict.png) | ![Paper editor](docs/screenshots/after/03-editor.png) |
 
 ## Contents
 - [Quick start](#quick-start)
@@ -183,7 +183,7 @@ All routes are under `/api`; every body is validated with zod.
 | `npm test` | all tests (fingerprint, API, worker) |
 | `npm run db:test` | create and migrate the `leaktrace_test` database (once, before the API/worker tests) |
 | `npm run fp:demo` | print two variants and trace a pasted excerpt |
-| `npm run screenshots` | regenerate `docs/screenshots` using an isolated database and ports |
+| `npm run screenshots` | regenerate `docs/screenshots/after` using an isolated database and ports |
 
 ## Tests
 
@@ -223,17 +223,17 @@ and re-checked on the server; `TRUST_PROXY` is configurable and the client IP is
 
 | | |
 |---|---|
-| ![Login](docs/screenshots/01-login.png) | ![Dashboard](docs/screenshots/02-dashboard.png) |
+| ![Login](docs/screenshots/after/01-login.png) | ![Dashboard](docs/screenshots/after/02-dashboard.png) |
 | Login | Controller dashboard: status track and countdown to release |
-| ![Editor](docs/screenshots/03-editor.png) | ![Spot the difference](docs/screenshots/04-spot-the-difference.png) |
+| ![Editor](docs/screenshots/after/03-editor.png) | ![Spot the difference](docs/screenshots/after/04-spot-the-difference.png) |
 | Paper editor: live preview, capacity meter, x / 20 copies | Spot the difference |
-| ![Centres](docs/screenshots/05-centres.png) | ![Generation](docs/screenshots/06-generation.png) |
+| ![Centres](docs/screenshots/after/05-centres.png) | ![Generation](docs/screenshots/after/06-generation.png) |
 | Centres and rooms | Generation monitor |
-| ![Schedule](docs/screenshots/07-schedule.png) | ![Locked portal](docs/screenshots/08-centre-portal-locked.png) |
+| ![Schedule](docs/screenshots/after/07-schedule.png) | ![Locked portal](docs/screenshots/after/08-centre-portal-locked.png) |
 | Schedule | Centre portal before the window opens |
-| ![Portal download](docs/screenshots/09-centre-portal-download.png) | ![Trace verdict](docs/screenshots/10-trace-verdict.png) |
+| ![Portal download](docs/screenshots/after/09-centre-portal-download.png) | ![Trace verdict](docs/screenshots/after/10-trace-verdict.png) |
 | Centre portal after release | Trace Lab verdict |
-| ![Audit log](docs/screenshots/11-audit-log.png) | ![Outbox](docs/screenshots/12-outbox.png) |
+| ![Audit log](docs/screenshots/after/11-audit-log.png) | ![Outbox](docs/screenshots/after/12-outbox.png) |
 | Audit log (denied attempts in red) | Outbox |
 
 Regenerate them with `npm run screenshots`.
