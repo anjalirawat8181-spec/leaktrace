@@ -7,7 +7,6 @@ import { query } from './db';
 export const COOKIE_NAME = 'lt_session';
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: SessionUser;

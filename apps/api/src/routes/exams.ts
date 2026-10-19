@@ -30,7 +30,6 @@ async function totalSeats(): Promise<number> {
   return Number(rows[0].total);
 }
 
-/** Copies the exam will have; before rooms exist, plan for the maximum. */
 function planCopies(seats: number): number {
   return seats > 0 ? Math.min(seats, config.maxCopies) : config.maxCopies;
 }
@@ -102,7 +101,6 @@ examsRouter.get('/:id', requireRole('CONTROLLER', 'AUDITOR'), async (req, res) =
   res.json({ ...examJson(exam), totalCopies: seats, maxCopies: config.maxCopies, template, schedule });
 });
 
-// Live editor feedback: parse without saving; also renders copy #1 as a preview.
 examsRouter.post('/:id/template/preview', requireRole('CONTROLLER'), async (req, res) => {
   const body = templateSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: 'Invalid template' });

@@ -25,7 +25,6 @@ export function createAdapters(mode: 'local' | 'aws', options: LocalOptions = {}
 
   const config = new EnvConfig(REQUIRED_CONFIG_KEYS);
   const pool = options.pool ?? new Pool({ connectionString: config.get('DATABASE_URL') });
-  // packages/adapters/{src,dist}/index.js -> repo root
   const repoRoot = path.resolve(__dirname, '../../..');
   const dataDir = options.dataDir ?? path.resolve(config.get('DATA_DIR') ?? path.join(repoRoot, 'data'));
   const queue = new LocalQueue(pool, options.visibilitySec);

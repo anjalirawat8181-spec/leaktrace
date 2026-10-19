@@ -9,15 +9,10 @@ import {
 const FONT_DIR = path.resolve(__dirname, '../fonts');
 const FIXED_DATE = new Date(0);
 
-/** 6 hex chars printed in the footer; a decoy that carries no trace information. */
 export function visibleCode(serial: number, key: string): string {
   return createHash('sha256').update(`${serial}${key}`).digest('hex').slice(0, 6);
 }
 
-/**
- * Per-copy answer key. By convention the option written first (A) in the template
- * is the correct one; the key records the letter it lands on after permutation.
- */
 export function buildAnswerKey(points: VariationPoint[], vector: number[]): Record<string, string> {
   const key: Record<string, string> = {};
   points.forEach((point, i) => {
@@ -37,7 +32,6 @@ export interface CopyPdfInput {
   text: string;
 }
 
-/** Deterministic: the same input always yields byte-identical output. */
 export function renderCopyPdf(input: CopyPdfInput): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -59,7 +53,7 @@ export function renderCopyPdf(input: CopyPdfInput): Promise<Buffer> {
       const { left, right } = doc.page.margins;
       const width = doc.page.width - left - right;
       const saved = doc.page.margins.bottom;
-      doc.page.margins.bottom = 0; // allow writing inside the bottom margin without paging
+      doc.page.margins.bottom = 0;
       doc.font('Bold').fontSize(11).fillColor('#000')
         .text(input.title, left, 36, { width: width * 0.65, lineBreak: false });
       doc.font('Regular').fontSize(9)
@@ -98,7 +92,6 @@ export interface CopyRenderInput extends Omit<CopyPdfInput, 'text'> {
   vector: number[];
 }
 
-/** Resolves the template with the stored vector and renders it. */
 export function renderCopy(input: CopyRenderInput): Promise<Buffer> {
   const { template, vector, ...rest } = input;
   return renderCopyPdf({ ...rest, text: renderTemplate(template, vector) });

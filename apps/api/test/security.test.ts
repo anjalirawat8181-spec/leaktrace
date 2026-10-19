@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-// Must be set before the app (and its rate limiter) is imported.
 process.env.LOGIN_RATE_LIMIT = '5';
 delete process.env.TRUST_PROXY;
 

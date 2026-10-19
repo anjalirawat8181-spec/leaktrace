@@ -8,7 +8,6 @@ export function getAdapters(): Adapters {
   return current;
 }
 
-/** Tests can swap in their own adapters (e.g. a temp data directory). */
 export function setAdapters(adapters: Adapters): void {
   current = adapters;
 }

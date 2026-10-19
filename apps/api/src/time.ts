@@ -2,13 +2,11 @@ export const EXAM_TIMEZONE = 'Asia/Kolkata';
 
 let clock: () => Date = () => new Date();
 
-/** The single source of "now" for window checks; tests can replace it. */
 export const now = (): Date => clock();
 export function setClock(fn: (() => Date) | null): void {
   clock = fn ?? (() => new Date());
 }
 
-/** Wall-clock ISO ("2026-10-19T09:15:00") of an instant in the given timezone. */
 export function wallClockIso(date: Date, timeZone = EXAM_TIMEZONE): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',

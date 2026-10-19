@@ -9,7 +9,6 @@ import { createApp } from '../../api/src/app';
 import { closePool, getPool, query } from '../../api/src/db';
 import { processMessage, type GenerationMessage } from '../src/process';
 
-/** supertest hangs intermittently on large binary bodies on Windows, so binary reads use fetch. */
 async function fetchBinary(server: any, path: string, cookie = '') {
   const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { headers: { cookie } });
   return { status: res.status, type: res.headers.get('content-type') ?? '', body: Buffer.from(await res.arrayBuffer()) };
@@ -38,8 +37,8 @@ describe('generation pipeline (M3)', async () => {
     return;
   }
   const server = createApp().listen(0);
-  server.keepAliveTimeout = 120_000; // avoid resets when a test reuses an idle socket
-  const app = server; // one real listener for every request
+  server.keepAliveTimeout = 120_000;
+  const app = server;
   const agent = request.agent(server);
   const adapters = getAdapters();
   const deps = { pool: getPool(), adapters, log: () => {} };
@@ -142,7 +141,7 @@ describe('generation pipeline (M3)', async () => {
     const upload = await adapters.storage.signedUploadUrl('evidence/test.txt', 'text/plain', 60);
     await request(app).put(upload).set('Content-Type', 'text/plain').send('hello').expect(204);
     expect(await adapters.storage.exists('evidence/test.txt')).toBe(true);
-    await request(app).put(good).send('x').expect(403); // a download token cannot upload
+    await request(app).put(good).send('x').expect(403);
   });
 
   it('moves a failing message to the dead-letter queue after 3 receives', async () => {
@@ -150,7 +149,7 @@ describe('generation pipeline (M3)', async () => {
     for (let i = 1; i <= MAX_RECEIVES; i++) {
       const [msg] = await adapters.queue.receive<GenerationMessage>('generation');
       expect(msg.receiveCount).toBe(i);
-      await processMessage(deps, msg); // fails (no such copy), so it is not deleted
+      await processMessage(deps, msg);
       await query("UPDATE local_queue SET visible_at = now() WHERE queue='generation'");
     }
     expect(await adapters.queue.receive('generation')).toHaveLength(0);

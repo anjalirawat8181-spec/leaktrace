@@ -71,7 +71,6 @@ describe('trace lab (M5)', async () => {
       for (const m of msgs) await processMessage(deps, m);
     }
 
-    // The leaker: copy 14, whose room bundle "Supt B" downloaded earlier.
     target = (await query(
       `SELECT c.*, ce.code AS centre_code, r.name AS room_name, r.invigilator_name FROM copies c
        JOIN centres ce ON ce.id = c.centre_id JOIN rooms r ON r.id = c.room_id
@@ -87,7 +86,7 @@ describe('trace lab (M5)', async () => {
     const text = renderTemplate(tpl.parsed as ParsedTemplate, target.choice_vector);
     const paragraphs = text.split(/\n\n/).filter((p) => /^\d+\./.test(p.trim())).slice(0, 3);
     excerpt = paragraphs.join('\n\n')
-      .replace('storage', 'storge') // two injected typos
+      .replace('storage', 'storge')
       .replace('Amazon', 'Amazn');
   });
   afterAll(async () => {
@@ -130,12 +129,10 @@ describe('trace lab (M5)', async () => {
     expect(alerts[0].body).toMatch(/1 in [\d,]+/);
     expect(metrics.counters.get('LeaksIdentified')).toBe(1);
 
-    // Re-running does not duplicate the alert.
     await controller.post(`/api/trace/cases/${caseId}/run`).expect(200);
     expect(await query("SELECT 1 FROM notifications WHERE topic='leak-alerts'")).toHaveLength(1);
     expect(metrics.counters.get('TraceRuns')).toBe(2);
 
-    // The auditor can read the case but not run traces.
     const read = await auditor.get(`/api/trace/cases/${caseId}`).expect(200);
     expect(read.body.top.serial).toBe(14);
     await auditor.post(`/api/trace/cases/${caseId}/run`).expect(403);
@@ -157,15 +154,12 @@ describe('trace lab (M5)', async () => {
     const created = await controller.post('/api/trace/cases').send({ examId, title: 'With photo', leakText: excerpt });
     const id = created.body.id;
 
-    // Registered but never uploaded.
     const reg = await controller.post(`/api/trace/cases/${id}/evidence-url`).send({ sha256: sha, contentType: 'image/png' }).expect(200);
     await controller.post(`/api/trace/cases/${id}/run`).expect(422);
 
-    // Upload the file, then run.
     await request(server).put(reg.body.url).set('Content-Type', 'image/png').send(photo).expect(204);
     await controller.post(`/api/trace/cases/${id}/run`).expect(200);
 
-    // A hash that does not match the stored bytes is rejected.
     const wrong = createHash('sha256').update('something else').digest('hex');
     await controller.post(`/api/trace/cases/${id}/evidence-url`).send({ sha256: wrong, contentType: 'image/png' }).expect(200);
     const bad = await controller.post(`/api/trace/cases/${id}/run`);

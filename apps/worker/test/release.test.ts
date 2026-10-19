@@ -10,7 +10,6 @@ import { consumeExamEvents } from '../../api/src/events';
 import { setClock } from '../../api/src/time';
 import { processMessage, type GenerationMessage } from '../src/process';
 
-/** supertest hangs intermittently on large binary bodies on Windows, so binary reads use fetch. */
 async function fetchBinary(server: any, path: string, cookie = '') {
   const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { headers: { cookie } });
   return { status: res.status, type: res.headers.get('content-type') ?? '', body: Buffer.from(await res.arrayBuffer()) };
@@ -39,7 +38,7 @@ describe('release window (M4)', async () => {
     return;
   }
   const server = createApp().listen(0);
-  server.keepAliveTimeout = 120_000; // avoid resets when a test reuses an idle socket
+  server.keepAliveTimeout = 120_000;
   const adapters = getAdapters();
   const deps = { pool: getPool(), adapters, log: () => {} };
   const metrics = adapters.metrics as LocalMetrics;
@@ -110,16 +109,14 @@ describe('release window (M4)', async () => {
     const exam = (await query('SELECT * FROM exams WHERE id=$1', [id]))[0];
     expect(exam.status).toBe('SCHEDULED');
     const rows = await query('SELECT name, fire_at, payload FROM local_schedules ORDER BY fire_at');
-    const start = Math.floor(new Date(exam.starts_at).getTime() / 1000) * 1000; // schedules have 1 s precision
+    const start = Math.floor(new Date(exam.starts_at).getTime() / 1000) * 1000;
     expect(rows.map((r) => r.name)).toEqual([`leaktrace-release-${id}`, `leaktrace-close-${id}`]);
     expect(new Date(rows[0].fire_at).getTime()).toBe(start - 15 * 60_000);
     expect(new Date(rows[1].fire_at).getTime()).toBe(start + 30 * 60_000);
     expect(rows[0].payload).toEqual({ type: 'RELEASE', examId: id });
 
-    // Not due yet: nothing fires.
     expect(await scheduler.fireDue()).toBe(0);
 
-    // The download is refused before the window, and the denial is recorded everywhere.
     const before = metrics.counters.get('DownloadsOutsideWindow') ?? 0;
     const denied = await suptA.post(`/api/centre/exams/${id}/download`).send({});
     expect(denied.status).toBe(403);
@@ -137,11 +134,11 @@ describe('release window (M4)', async () => {
   });
 
   it('releases via the scheduler and exam-events consumer, then serves only the own centre', async () => {
-    await query("DELETE FROM local_schedules"); // isolate from the previous exam
-    const id = await readyExam('Live exam', 5); // window opened 10 minutes ago
+    await query("DELETE FROM local_schedules");
+    const id = await readyExam('Live exam', 5);
     await controller.post(`/api/exams/${id}/schedule`).send({}).expect(200);
 
-    expect(await scheduler.fireDue()).toBe(1); // release is due; close is not
+    expect(await scheduler.fireDue()).toBe(1);
     expect(await consumeExamEvents(adapters)).toBe(1);
     expect((await query('SELECT status FROM exams WHERE id=$1', [id]))[0].status).toBe('RELEASED');
     const notices = await query("SELECT subject FROM notifications WHERE topic='release-notices'");
@@ -168,7 +165,6 @@ describe('release window (M4)', async () => {
     await auditor.post(`/api/centre/exams/${id}/download`).send({}).expect(403);
     await controller.post(`/api/centre/exams/${id}/download`).send({}).expect(403);
 
-    // After the close time the download is refused, even before the CLOSE event is processed.
     setClock(() => new Date(Date.now() + 2 * 3600_000));
     const late = await suptA.post(`/api/centre/exams/${id}/download`).send({});
     setClock(null);

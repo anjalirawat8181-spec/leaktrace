@@ -13,7 +13,6 @@ function zoneOffsetMs(utcMs: number, timeZone: string): number {
   return asUtc - Math.floor(utcMs / 1000) * 1000;
 }
 
-/** Converts a wall-clock ISO string in `timeZone` ("2026-10-19T12:45:00") to a UTC Date. */
 export function localIsoToUtc(atLocalISO: string, timeZone: string): Date {
   if (HAS_OFFSET.test(atLocalISO)) return new Date(atLocalISO);
   const wallAsUtc = new Date(`${atLocalISO}Z`).getTime();
@@ -41,7 +40,6 @@ export class LocalScheduler implements Scheduler {
     await this.pool.query('DELETE FROM local_schedules WHERE name = $1', [name]);
   }
 
-  /** Delivers every due schedule to the "exam-events" queue. Returns how many fired. */
   async fireDue(): Promise<number> {
     const client = await this.pool.connect();
     try {

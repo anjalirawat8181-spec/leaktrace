@@ -25,7 +25,7 @@ async function main() {
     try {
       const messages = await adapters.queue.receive<GenerationMessage>('generation', { max: 10, waitSec: 20 });
       for (const message of messages) {
-        if (stopping) break; // unstarted messages become visible again after the timeout
+        if (stopping) break;
         await processMessage(deps, message);
       }
     } catch (err) {

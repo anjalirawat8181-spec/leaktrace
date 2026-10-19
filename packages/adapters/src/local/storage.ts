@@ -6,7 +6,7 @@ import type { Storage } from '../interfaces';
 export interface FileToken {
   key: string;
   method: 'GET' | 'PUT';
-  exp: number; // epoch seconds
+  exp: number;
   contentType?: string;
 }
 
@@ -57,7 +57,6 @@ export class LocalStorage implements Storage {
     return `${payload}.${this.sign(payload)}`;
   }
 
-  /** Returns the token contents, or null when it is tampered with or expired. */
   verifyToken(raw: string, now = Date.now()): FileToken | null {
     const [payload, signature] = raw.split('.');
     if (!payload || !signature) return null;

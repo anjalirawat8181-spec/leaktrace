@@ -141,7 +141,6 @@ CREATE TABLE trace_results (
   rank int NOT NULL
 );
 
--- Local-adapter tables (used from milestone 3)
 CREATE TABLE local_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   queue text NOT NULL,

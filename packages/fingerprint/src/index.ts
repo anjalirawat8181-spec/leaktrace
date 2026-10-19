@@ -907,15 +907,10 @@ export function detectLeak(
   };
 }
 
-/**
- * detectLeak reports positions in the normalised text (NFKC, lowercase, collapsed whitespace).
- * This maps such a range back onto the original text so it can be highlighted in a UI.
- */
 export function mapNormalizedRange(
   original: string,
   range: { start: number; end: number },
 ): { start: number; end: number } {
-  // Length of the normalised text up to original index i (monotonic in i).
   const prefixLength = (i: number) => normalizeText(`${original.slice(0, i)}|`).length - 1;
   const firstIndexReaching = (target: number): number => {
     let low = 0;

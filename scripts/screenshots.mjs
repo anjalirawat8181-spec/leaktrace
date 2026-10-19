@@ -1,10 +1,3 @@
-// Regenerates docs/screenshots/*.png.
-//
-// Runs a completely separate stack (own database, ports and data directory) so it never touches
-// your dev data: API :4101, web :5181, database "leaktrace_shots". Requires Docker (for Postgres)
-// and a Chromium-based browser (Edge ships with Windows; set CHROME_PATH otherwise).
-//
-//   npm run screenshots
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -58,7 +51,6 @@ function start(name, args, cwd = root) {
 function stopAll() {
   for (const { child } of children) {
     if (child.exitCode !== null || !child.pid) continue;
-    // Only processes this script started, identified by PID (and their children).
     if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F']);
     else child.kill('SIGTERM');
   }
@@ -69,7 +61,7 @@ async function waitFor(url, label, timeoutMs = 60_000) {
   while (Date.now() < end) {
     try {
       if ((await fetch(url)).ok) return;
-    } catch { /* not up yet */ }
+    } catch { }
     await sleep(500);
   }
   const logs = children.map(({ name }) => `--- ${name}\n${fs.readFileSync(path.join(LOG_DIR, `${name}.log`), 'utf8').slice(-1500)}`);
@@ -91,7 +83,6 @@ function findBrowser() {
   return found;
 }
 
-// ---- browser helpers -------------------------------------------------------------------------
 const waitText = (page, text, timeout = 30_000) =>
   page.waitForFunction(
     (t) => document.body.innerText.toLowerCase().includes(t.toLowerCase()), { timeout }, text,
@@ -128,7 +119,7 @@ async function logout(page) {
 }
 
 async function shot(page, name, fullPage = false) {
-  await sleep(400); // let transitions settle
+  await sleep(400);
   const file = path.join(OUT, `${name}.png`);
   await page.screenshot({ path: file, fullPage });
   console.log('  saved', path.relative(root, file));
@@ -142,7 +133,6 @@ async function apiLogin(email) {
   return res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
 }
 
-// ---- main ------------------------------------------------------------------------------------
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   console.log('Preparing isolated database…');
@@ -214,14 +204,12 @@ async function main() {
     await login(page, 'supt.c1@demo');
     await waitText(page, 'Paper unlocks in');
     await shot(page, '08-centre-portal-locked');
-    // A premature attempt, so the audit log and Outbox have a denied download to show.
     await page.evaluate(async (id) => {
       await fetch(`/api/centre/exams/${id}/download`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
       });
     }, examId);
 
-    // Move the exam into its release window and let the scheduler + consumer release it.
     await db.query("UPDATE exams SET starts_at = now() + interval '5 minutes' WHERE id = $1", [examId]);
     const controllerCookie = await apiLogin('controller@demo');
     const rescheduled = await fetch(`${API}/api/exams/${examId}/schedule`, {
@@ -249,7 +237,7 @@ async function main() {
     );
     const paper = renderTemplate(copy.parsed, copy.choice_vector);
     const leak = paper.split(/\n\n/).filter((p) => /^\d+\./.test(p.trim())).slice(0, 3).join('\n\n')
-      .replace('storage', 'storge') // typos, as in a hand-typed or OCR'd leak
+      .replace('storage', 'storge')
       .replace('Amazon', 'Amazn');
 
     await login(page, 'controller@demo');
@@ -286,7 +274,7 @@ try {
   try {
     run('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'leaktrace', '-d', 'postgres', '-c',
       `DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`]);
-  } catch { /* best effort */ }
+  } catch { }
   fs.rmSync(path.join(root, 'data', 'screenshots'), { recursive: true, force: true });
 }
 process.exit(failed ? 1 : 0);

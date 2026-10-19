@@ -31,7 +31,7 @@ const highlightPoints = ViewPlugin.fromClass(
 function DslEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>();
-  const syncing = useRef(false); // true while loading server text, which is not a user edit
+  const syncing = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -53,10 +53,8 @@ function DslEditor({ value, onChange, readOnly }: { value: string; onChange: (v:
     });
     view.current = v;
     return () => v.destroy();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readOnly]);
 
-  // Load server text once it arrives without clobbering the user's typing.
   useEffect(() => {
     const v = view.current;
     if (v && v.state.doc.toString() !== value && !v.hasFocus) {

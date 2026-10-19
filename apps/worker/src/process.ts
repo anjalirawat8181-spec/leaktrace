@@ -17,11 +17,6 @@ export interface WorkerDeps {
   log: (o: object) => void;
 }
 
-/**
- * Renders one room's copies, merges them in seat order and stores the bundle.
- * Throws on failure so the caller leaves the message undeleted (queue retries, then DLQ).
- * Returns true when the message did work, false when it was an idempotent no-op.
- */
 export async function handleGeneration(deps: WorkerDeps, msg: GenerationMessage): Promise<boolean> {
   const { pool, adapters } = deps;
 
@@ -67,7 +62,6 @@ export async function handleGeneration(deps: WorkerDeps, msg: GenerationMessage)
       'UPDATE copies SET storage_key=$2, generated_at=now() WHERE id = ANY($1::uuid[])',
       [msg.copyIds, key],
     );
-    // Atomic progress: concurrent workers each add their own room's copies.
     const { rows: [job] } = await client.query(
       `UPDATE generation_jobs SET done = done + $2,
          status = CASE WHEN done + $2 + failed >= total THEN 'DONE' ELSE status END,
@@ -91,7 +85,6 @@ export async function handleGeneration(deps: WorkerDeps, msg: GenerationMessage)
   return true;
 }
 
-/** Processes one queue message; deletes it only on success. */
 export async function processMessage(deps: WorkerDeps, message: QueueMessage<GenerationMessage>): Promise<void> {
   try {
     await handleGeneration(deps, message.body);

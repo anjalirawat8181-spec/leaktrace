@@ -37,7 +37,7 @@ export function createApp() {
   app.use('/api/trace', traceRouter);
   app.use('/api/audit', auditRouter);
   app.use('/api/notifications', notificationsRouter);
-  app.use('/api/local-files', localFilesRouter); // local mode only; AWS mode would skip this
+  app.use('/api/local-files', localFilesRouter);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 

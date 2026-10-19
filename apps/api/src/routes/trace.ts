@@ -35,7 +35,6 @@ const caseJson = (c: any) => ({
   evidenceKey: c.evidence_key, evidenceSha256: c.evidence_sha256, createdAt: new Date(c.created_at).toISOString(),
 });
 
-/** Runs detection against every issued copy and enriches the result with who/where/when. */
 async function analyse(c: any) {
   const [tpl] = await query(
     'SELECT parsed FROM paper_templates WHERE exam_id=$1 ORDER BY version DESC LIMIT 1', [c.exam_id],
@@ -120,7 +119,6 @@ traceRouter.post('/cases', requireRole('CONTROLLER'), async (req, res) => {
   res.status(201).json(caseJson(row));
 });
 
-// The browser hashes the photo first; the hash is recorded now and re-checked against the upload at run time.
 traceRouter.post('/cases/:id/evidence-url', requireRole('CONTROLLER'), async (req, res) => {
   const c = await loadCase(req.params.id);
   if (!c) return res.status(404).json({ error: 'Case not found' });
@@ -210,6 +208,5 @@ traceRouter.post('/cases/:id/run', requireRole('CONTROLLER'), async (req, res) =
 traceRouter.get('/cases/:id', requireRole('CONTROLLER', 'AUDITOR'), async (req, res) => {
   const c = await loadCase(req.params.id);
   if (!c) return res.status(404).json({ error: 'Case not found' });
-  // Detection is deterministic, so a stored case is re-analysed rather than duplicated in the DB.
   res.json({ case: caseJson(c), ...(c.status === 'OPEN' ? {} : await analyse(c)) });
 });

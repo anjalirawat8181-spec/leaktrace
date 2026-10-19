@@ -7,7 +7,6 @@ auditRouter.use(requireAuth, requireRole('CONTROLLER', 'AUDITOR'));
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-/** Audit events and download attempts merged into one chronological feed. */
 auditRouter.get('/', async (req, res) => {
   const examId = typeof req.query.examId === 'string' && UUID.test(req.query.examId) ? req.query.examId : null;
   const type = typeof req.query.type === 'string' && req.query.type ? req.query.type : null;

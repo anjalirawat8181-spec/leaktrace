@@ -213,7 +213,6 @@ describe('leak detection', () => {
 describe('mapNormalizedRange', () => {
   it('maps normalised positions back onto the original text', () => {
     const original = '  Hello   WORLD  foo bar';
-    // normalised: "hello world foo bar"
     const range = mapNormalizedRange(original, { start: 6, end: 15 });
     expect(original.slice(range.start, range.end)).toBe('WORLD  foo');
   });

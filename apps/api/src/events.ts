@@ -13,7 +13,7 @@ export async function handleExamEvent(adapters: Adapters, event: ExamEvent): Pro
        RETURNING title, starts_at`,
       [event.examId],
     );
-    if (!rows[0]) return; // duplicate or stale event
+    if (!rows[0]) return;
     await audit(null, 'EXAM_RELEASED', 'exam', event.examId);
     await adapters.notifier.publish(
       'release-notices',
@@ -31,11 +31,10 @@ export async function handleExamEvent(adapters: Adapters, event: ExamEvent): Pro
   }
 }
 
-/** Drains the exam-events queue once. Returns the number of messages handled. */
 export async function consumeExamEvents(adapters: Adapters, waitSec = 0): Promise<number> {
   const messages = await adapters.queue.receive<ExamEvent>('exam-events', { max: 10, waitSec });
   for (const message of messages) {
-    await handleExamEvent(adapters, message.body); // throws => not deleted => retried
+    await handleExamEvent(adapters, message.body);
     await adapters.queue.delete('exam-events', message.receiptHandle);
   }
   return messages.length;

@@ -7,7 +7,6 @@ function tokenize(text: string): Array<{ value: string; start: number }> {
   return Array.from(text.matchAll(/\S+/g), (m) => ({ value: m[0], start: m.index ?? 0 }));
 }
 
-/** Word-level diff: returns the character ranges of words that differ on each side. */
 export function wordDiff(a: string, b: string): { a: Range[]; b: Range[] } {
   const ta = tokenize(a);
   const tb = tokenize(b);
