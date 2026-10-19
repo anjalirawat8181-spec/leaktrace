@@ -1,30 +1,81 @@
+@import '@fontsource/fira-sans/latin-400.css';
+@import '@fontsource/fira-sans/latin-500.css';
+@import '@fontsource/fira-sans/latin-600.css';
+@import '@fontsource/fira-sans/latin-700.css';
+@import '@fontsource/fira-code/latin-400.css';
+@import '@fontsource/fira-code/latin-500.css';
+@import '@fontsource/fira-code/latin-600.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-lab-bg text-lab-text font-sans antialiased;
+:root {
+  color-scheme: dark;
+  --c-bg: 2 6 23;
+  --c-surface: 11 17 32;
+  --c-raised: 17 26 46;
+  --c-line: 30 41 59;
+  --c-line-strong: 100 116 139;
+  --c-fg: 248 250 252;
+  --c-fg-muted: 148 163 184;
+  --c-ok: 34 197 94;
+  --c-ok-tint: 10 36 23;
+  --c-warn: 251 191 36;
+  --c-warn-tint: 42 31 7;
+  --c-danger: 248 113 113;
+  --c-danger-tint: 42 15 20;
+  --c-danger-solid: 220 38 38;
+  --c-info: 56 189 248;
+  --c-info-tint: 8 37 54;
+  --c-on-accent: 4 20 10;
+}
+
+@layer base {
+  html { @apply bg-bg; }
+  body { @apply bg-bg text-fg font-sans text-base antialiased min-h-dvh; line-height: 1.5; }
+  h1, h2, h3 { @apply font-semibold tracking-tight; }
+  :focus-visible { @apply outline outline-2 outline-offset-2 outline-info; }
+  ::selection { background: rgb(var(--c-info) / 0.35); }
+  button, a, select, summary, [role='button'] { @apply cursor-pointer; }
+  button:disabled { @apply cursor-not-allowed; }
+  table { @apply tabular-nums; }
 }
 
 @layer components {
-  .panel { @apply bg-lab-panel border border-lab-line rounded-md p-4; }
-  .btn {
-    @apply font-mono text-sm px-3 py-1.5 rounded border border-lab-line bg-lab-panel
-      hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-  .btn-primary { @apply border-emerald-600 text-emerald-300; }
-  .input {
-    @apply bg-lab-bg border border-lab-line rounded px-2 py-1.5 font-mono text-sm w-full
-      focus:outline-none focus:border-emerald-500;
-  }
-  .label { @apply block font-mono text-xs text-lab-dim mb-1 uppercase tracking-wider; }
+  .data-num { @apply font-mono tabular-nums; }
+  .eyebrow { @apply font-mono text-xs uppercase tracking-widest text-fg-muted; }
 }
 
-.cm-editor { background: #07090b; border: 1px solid #1f272d; border-radius: 6px; font-size: 13px; }
-.cm-editor.cm-focused { outline: 1px solid #10b981; }
-.cm-content { font-family: ui-monospace, Menlo, Consolas, monospace; color: #c9d4dc; caret-color: #fff; }
-.cm-editor .cm-gutters { background: #0f1316; color: #6b7a86; border: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.cm-editor { background: rgb(var(--c-bg)); border: 1px solid rgb(var(--c-line-strong)); border-radius: 8px; font-size: 14px; }
+.cm-editor.cm-focused { outline: 2px solid rgb(var(--c-info)); outline-offset: 2px; }
+.cm-content { font-family: 'Fira Code', ui-monospace, monospace; color: rgb(var(--c-fg)); caret-color: rgb(var(--c-fg)); padding: 8px 0; }
+.cm-editor .cm-gutters { background: rgb(var(--c-surface)); color: rgb(var(--c-fg-muted)); border: none; }
 .cm-editor .cm-activeLineGutter { background: transparent; }
-.cm-point { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-radius: 3px; }
-.cm-directive { color: #34d399; font-weight: 600; }
-.diff-hit { background: rgba(245, 158, 11, 0.3); color: #fde68a; border-radius: 2px; }
+.cm-point { background: rgb(var(--c-warn) / 0.16); color: rgb(var(--c-warn)); border-radius: 3px; }
+.cm-directive { color: rgb(var(--c-ok)); font-weight: 600; }
+
+.diff-hit { background: rgb(var(--c-warn) / 0.28); color: rgb(var(--c-fg)); border-radius: 2px; padding: 0 2px; box-shadow: 0 -1px 0 rgb(var(--c-warn)) inset; }
+
+.trace-mark {
+  position: relative; border-radius: 2px; padding: 0 2px; color: rgb(var(--c-fg));
+  background: rgb(var(--c-warn) / 0.28); box-shadow: 0 -1px 0 rgb(var(--c-warn)) inset;
+}
+.trace-mark[data-agrees='false'] { background: rgb(var(--c-danger) / 0.3); box-shadow: 0 -1px 0 rgb(var(--c-danger)) inset; }
+.trace-mark .tip {
+  visibility: hidden; opacity: 0; position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20;
+  width: max-content; max-width: 18rem; white-space: normal; pointer-events: none;
+  background: rgb(var(--c-raised)); color: rgb(var(--c-fg)); border: 1px solid rgb(var(--c-line-strong));
+  border-radius: 6px; padding: 6px 8px; font: 500 12px/1.4 'Fira Code', monospace;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.6); transition: opacity 150ms;
+}
+.trace-mark:hover .tip, .trace-mark:focus .tip { visibility: visible; opacity: 1; }
