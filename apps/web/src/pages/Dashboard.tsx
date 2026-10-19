@@ -1,32 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Exam, type User } from '../api';
+import { QueryState } from '../components/QueryState';
+import {
+  Button, Card, EmptyState, Field, Icon, Input, Notice, PageHeader, Skeleton, StatusBadge, cx,
+} from '../components/ui';
+import { formatDateTime, formatDhms, useNow } from '../lib/hooks';
 
 const TRACK = ['DRAFT', 'GENERATING', 'READY', 'SCHEDULED', 'RELEASED', 'CLOSED'] as const;
 
-function Countdown({ to }: { to: string }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const ms = new Date(to).getTime() - now;
-  if (ms <= 0) return <span className="text-amber-400">window open or passed</span>;
-  const s = Math.floor(ms / 1000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const d = Math.floor(s / 86400);
-  return <span>{d > 0 ? `${d}d ` : ''}{pad(Math.floor((s % 86400) / 3600))}:{pad(Math.floor((s % 3600) / 60))}:{pad(s % 60)}</span>;
+function ReleaseCountdown({ exam }: { exam: Exam }) {
+  const now = useNow();
+  const releaseAt = new Date(exam.startsAt).getTime() - exam.releaseLeadMin * 60000;
+  const ms = releaseAt - now;
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-xs text-fg-muted">{ms > 0 ? 'Release in' : 'Release window'}</span>
+      <span className={cx('data-num text-sm', ms > 0 ? 'text-fg' : 'text-warn')}>{ms > 0 ? formatDhms(ms) : 'open or passed'}</span>
+    </div>
+  );
 }
 
 function StatusTrack({ status }: { status: Exam['status'] }) {
   const at = TRACK.indexOf(status);
   return (
-    <div className="flex gap-1" aria-label={`status ${status}`}>
+    <ol className="flex gap-1" aria-label={`Progress: ${status}`}>
       {TRACK.map((s, i) => (
-        <div key={s} title={s} className={`h-1.5 flex-1 rounded ${i <= at ? 'bg-emerald-500' : 'bg-lab-line'}`} />
+        <li key={s} aria-current={i === at ? 'step' : undefined} className="flex-1">
+          <span className="sr-only">{s}{i === at ? ' (current)' : i < at ? ' (done)' : ''}</span>
+          <span aria-hidden className={cx('block h-1.5 rounded-full transition-colors duration-base',
+            i < at ? 'bg-ok/60' : i === at ? 'bg-ok' : 'bg-line')} />
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
@@ -45,59 +52,71 @@ function NewExamForm({ onDone }: { onDone: () => void }) {
   });
   const submit = (e: FormEvent) => { e.preventDefault(); create.mutate(); };
   return (
-    <form onSubmit={submit} className="panel grid gap-3 sm:grid-cols-4 items-end">
-      <div><label className="label">Title</label><input className="input" required value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-      <div><label className="label">Subject</label><input className="input" required value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
-      <div><label className="label">Starts at</label><input className="input" type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
-      <div><label className="label">Duration (min)</label><input className="input" type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} /></div>
-      <div className="sm:col-span-4 flex items-center gap-3">
-        <button className="btn btn-primary" disabled={create.isPending}>Create exam</button>
-        {create.error && <span className="font-mono text-sm text-red-400">{(create.error as Error).message}</span>}
-      </div>
-    </form>
+    <Card>
+      <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Title">{(p) => <Input {...p} required value={title} onChange={(e) => setTitle(e.target.value)} />}</Field>
+        <Field label="Subject">{(p) => <Input {...p} required value={subject} onChange={(e) => setSubject(e.target.value)} />}</Field>
+        <Field label="Starts at">{(p) => <Input {...p} type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />}</Field>
+        <Field label="Duration (min)">{(p) => <Input {...p} type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />}</Field>
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4">
+          <Button type="submit" variant="primary" loading={create.isPending}>Create exam</Button>
+          {create.error && <Notice tone="danger" className="flex-1">{(create.error as Error).message}</Notice>}
+        </div>
+      </form>
+    </Card>
   );
 }
 
 export default function DashboardPage({ user }: { user: User }) {
   const [creating, setCreating] = useState(false);
-  const exams = useQuery({
-    queryKey: ['exams'],
-    queryFn: () => api<Exam[]>('/exams'),
-    enabled: user.role !== 'SUPERINTENDENT',
-  });
-
-  if (user.role === 'SUPERINTENDENT') {
-    return <p className="font-mono text-lab-dim">The centre portal arrives in a later milestone.</p>;
-  }
+  const exams = useQuery({ queryKey: ['exams'], queryFn: () => api<Exam[]>('/exams') });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center">
-        <h2 className="font-mono text-lg">Exams</h2>
-        {user.role === 'CONTROLLER' && (
-          <button className="btn ml-auto" onClick={() => setCreating((v) => !v)}>
+    <div>
+      <PageHeader
+        title="Exams"
+        subtitle="Paper status, from draft to release."
+        actions={user.role === 'CONTROLLER' && (
+          <Button variant={creating ? 'secondary' : 'primary'} icon={creating ? 'close' : 'plus'} onClick={() => setCreating((v) => !v)}>
             {creating ? 'Cancel' : 'New exam'}
-          </button>
+          </Button>
         )}
-      </div>
-      {creating && <NewExamForm onDone={() => setCreating(false)} />}
-      {exams.isLoading && <p className="font-mono text-lab-dim">loading…</p>}
-      {exams.data?.length === 0 && <p className="font-mono text-lab-dim">No exams yet.</p>}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {exams.data?.map((exam) => (
-          <Link key={exam.id} to={`/exams/${exam.id}`} className="panel block hover:border-emerald-600 space-y-3">
-            <div>
-              <h3 className="font-semibold">{exam.title}</h3>
-              <p className="font-mono text-xs text-lab-dim">{exam.subject}</p>
-            </div>
-            <StatusTrack status={exam.status} />
-            <div className="flex justify-between font-mono text-xs">
-              <span className="text-lab-dim">{exam.status}</span>
-              <span>release in <Countdown to={new Date(new Date(exam.startsAt).getTime() - exam.releaseLeadMin * 60000).toISOString()} /></span>
-            </div>
-          </Link>
-        ))}
-      </div>
+      />
+      {creating && <div className="mb-6"><NewExamForm onDone={() => setCreating(false)} /></div>}
+      <QueryState query={exams} skeleton={
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading exams">
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-44" />)}
+        </div>
+      }>
+        {(list) => list.length === 0 ? (
+          <EmptyState icon="exams" title="No exams yet">
+            {user.role === 'CONTROLLER' ? 'Create the first exam to start writing a paper template.' : 'A controller has not created any exams.'}
+          </EmptyState>
+        ) : (
+          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {list.map((exam) => (
+              <li key={exam.id}>
+                <Link to={`/exams/${exam.id}`}
+                  className="block h-full rounded-lg border border-line bg-surface p-5 shadow-card transition-colors duration-fast hover:border-line-strong hover:bg-raised/50">
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg leading-snug [overflow-wrap:anywhere]">{exam.title}</h2>
+                      <p className="mt-0.5 text-sm text-fg-muted">{exam.subject}</p>
+                    </div>
+                    <Icon name="arrowleft" className="mt-1 shrink-0 rotate-180 text-fg-muted" />
+                  </div>
+                  <StatusTrack status={exam.status} />
+                  <div className="mt-3 flex items-center justify-between">
+                    <StatusBadge status={exam.status} />
+                    <span className="text-xs text-fg-muted">{formatDateTime(exam.startsAt)}</span>
+                  </div>
+                  <div className="mt-3 border-t border-line pt-3"><ReleaseCountdown exam={exam} /></div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </QueryState>
     </div>
   );
 }

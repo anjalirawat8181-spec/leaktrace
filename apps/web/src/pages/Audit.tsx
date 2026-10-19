@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, type Exam } from '../api';
+import { QueryState } from '../components/QueryState';
+import { Badge, Card, EmptyState, Field, PageHeader, Select, SkeletonRows, Table, Td, Th, Tr } from '../components/ui';
+import { formatDateTime } from '../lib/hooks';
 
 interface AuditRow {
   id: string; at: string; actor: string; action: string; entity: string;
@@ -23,37 +26,48 @@ export default function AuditPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <h2 className="font-mono text-lg mr-4">Audit log</h2>
-        <div><label className="label">Exam</label>
-          <select className="input" value={examId} onChange={(e) => setExamId(e.target.value)}>
-            <option value="">All exams</option>
-            {exams.data?.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-          </select></div>
-        <div><label className="label">Type</label>
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
-            {TYPES.map((t) => <option key={t} value={t}>{t || 'All types'}</option>)}
-          </select></div>
-      </div>
-      <div className="panel overflow-x-auto p-0">
-        <table className="w-full font-mono text-xs">
-          <thead className="text-lab-dim text-left">
-            <tr><th className="p-2">Time</th><th>Actor</th><th>Action</th><th>Details</th></tr>
-          </thead>
-          <tbody>
-            {rows.data?.map((r) => (
-              <tr key={r.id} className={`border-t border-lab-line align-top ${r.denied ? 'bg-red-950/50 text-red-300' : ''}`}>
-                <td className="p-2 whitespace-nowrap">{new Date(r.at).toLocaleString()}</td>
-                <td>{r.actor}</td>
-                <td className="whitespace-nowrap">{r.action}</td>
-                <td className="text-lab-dim break-all pr-2">{JSON.stringify(r.details)}</td>
-              </tr>
-            ))}
-            {rows.data?.length === 0 && <tr><td className="p-3 text-lab-dim" colSpan={4}>No events.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+    <div>
+      <PageHeader title="Audit log" subtitle="Every action and every denied attempt. Refreshes every 5 seconds." />
+      <Card className="mb-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Exam">
+            {(p) => (
+              <Select {...p} value={examId} onChange={(e) => setExamId(e.target.value)}>
+                <option value="">All exams</option>
+                {exams.data?.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+              </Select>
+            )}
+          </Field>
+          <Field label="Type">
+            {(p) => (
+              <Select {...p} value={type} onChange={(e) => setType(e.target.value)}>
+                {TYPES.map((t) => <option key={t} value={t}>{t || 'All types'}</option>)}
+              </Select>
+            )}
+          </Field>
+        </div>
+      </Card>
+      <QueryState query={rows} skeleton={<SkeletonRows rows={6} />}>
+        {(list) => list.length === 0 ? (
+          <EmptyState icon="audit" title="No events">No audit events match these filters.</EmptyState>
+        ) : (
+          <Table caption="Audit events">
+            <thead><tr><Th>Time</Th><Th>Actor</Th><Th>Action</Th><Th>Details</Th></tr></thead>
+            <tbody>
+              {list.map((r) => (
+                <Tr key={r.id} tone={r.denied ? 'danger' : undefined}>
+                  <Td className="whitespace-nowrap data-num text-xs">{formatDateTime(r.at)}</Td>
+                  <Td className="whitespace-nowrap">{r.actor}</Td>
+                  <Td className="whitespace-nowrap">
+                    {r.denied ? <Badge tone="danger" icon="alert">{r.action}</Badge> : <span className="data-num text-xs">{r.action}</span>}
+                  </Td>
+                  <Td className="min-w-64 data-num text-xs text-fg-muted [overflow-wrap:anywhere]">{JSON.stringify(r.details)}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </QueryState>
     </div>
   );
 }
