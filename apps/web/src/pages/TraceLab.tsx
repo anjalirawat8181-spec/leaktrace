@@ -2,16 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type Exam, type User } from '../api';
+import { QueryState } from '../components/QueryState';
+import {
+  Button, Card, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, SkeletonRows, StatusBadge, Table, Td, Textarea, Th, Tr,
+} from '../components/ui';
+import { formatDateTime } from '../lib/hooks';
 
 interface CaseRow {
   id: string; title: string; examTitle: string; status: 'OPEN' | 'IDENTIFIED' | 'INCONCLUSIVE'; createdAt: string;
 }
-
-const STATUS_STYLE = {
-  OPEN: 'text-lab-dim',
-  IDENTIFIED: 'text-red-400',
-  INCONCLUSIVE: 'text-amber-400',
-};
 
 async function sha256Hex(file: File): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
@@ -40,7 +39,7 @@ export default function TraceLabPage({ user }: { user: User }) {
         method: 'POST', json: { examId: examId || exams.data?.[0]?.id, title, leakText },
       });
       if (photo) {
-        const sha256 = await sha256Hex(photo); // hashed in the browser; the server re-checks it
+        const sha256 = await sha256Hex(photo);
         const { url } = await api<{ url: string }>(`/trace/cases/${created.id}/evidence-url`, {
           method: 'POST', json: { sha256, contentType: photo.type },
         });
@@ -55,49 +54,64 @@ export default function TraceLabPage({ user }: { user: User }) {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <h2 className="font-mono text-lg">Trace Lab</h2>
+    <div className="max-w-5xl">
+      <PageHeader title="Trace Lab" subtitle="Paste leaked text and find the copy it came from." />
 
       {canRun ? (
-        <form onSubmit={submit} className="panel space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="label">Exam</label>
-              <select className="input" value={examId} onChange={(e) => setExamId(e.target.value)}>
-                {exams.data?.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
-              </select></div>
-            <div><label className="label">Case title</label>
-              <input className="input" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Telegram screenshot" /></div>
-          </div>
-          <div><label className="label">Leaked text (paste a few lines)</label>
-            <textarea className="input h-48 font-mono" required value={leakText} onChange={(e) => setLeakText(e.target.value)} /></div>
-          <div><label className="label">Photo evidence (optional)</label>
-            <input type="file" accept="image/png,image/jpeg,image/webp" className="font-mono text-xs"
-              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></div>
-          {error && <p className="font-mono text-sm text-red-400" role="alert">{error}</p>}
-          <button className="btn btn-primary" disabled={busy || !leakText.trim() || !title.trim()}>
-            {busy ? 'Preparing…' : 'Run trace'}
-          </button>
-        </form>
+        <Card className="mb-8">
+          <CardHeader title="New trace case">A few lines are enough; typos in the leak are tolerated.</CardHeader>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Exam">
+                {(p) => (
+                  <Select {...p} value={examId} onChange={(e) => setExamId(e.target.value)}>
+                    {exams.data?.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+                  </Select>
+                )}
+              </Field>
+              <Field label="Case title">
+                {(p) => <Input {...p} required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Telegram screenshot" />}
+              </Field>
+            </div>
+            <Field label="Leaked text (paste a few lines)">
+              {(p) => <Textarea {...p} className="h-48" required value={leakText} onChange={(e) => setLeakText(e.target.value)} />}
+            </Field>
+            <Field label="Photo evidence (optional)" hint="JPEG, PNG or WebP. The file is hashed in your browser and the hash is re-checked on the server.">
+              {(p) => (
+                <Input {...p} type="file" accept="image/png,image/jpeg,image/webp" className="file:mr-3 file:rounded-md file:border-0 file:bg-raised file:px-3 file:py-1 file:text-fg"
+                  onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+              )}
+            </Field>
+            {error && <Notice tone="danger">{error}</Notice>}
+            <Button type="submit" variant="primary" icon="trace" loading={busy} disabled={!leakText.trim() || !title.trim()}>
+              {busy ? 'Preparing…' : 'Run trace'}
+            </Button>
+          </form>
+        </Card>
       ) : (
-        <p className="font-mono text-xs text-lab-dim">Read-only access: open a case below to review its result.</p>
+        <Notice tone="info" icon="eye" className="mb-8">Read-only access: open a case below to review its result.</Notice>
       )}
 
-      <div className="panel p-0 overflow-x-auto">
-        <table className="w-full font-mono text-sm">
-          <thead className="text-lab-dim text-xs text-left"><tr><th className="p-2">Case</th><th>Exam</th><th>Status</th><th>Opened</th></tr></thead>
-          <tbody>
-            {cases.data?.map((c) => (
-              <tr key={c.id} className="border-t border-lab-line">
-                <td className="p-2"><Link className="text-emerald-400 hover:underline" to={`/trace/${c.id}`}>{c.title}</Link></td>
-                <td>{c.examTitle}</td>
-                <td className={STATUS_STYLE[c.status]}>{c.status}</td>
-                <td className="text-lab-dim">{new Date(c.createdAt).toLocaleString()}</td>
-              </tr>
-            ))}
-            {cases.data?.length === 0 && <tr><td className="p-3 text-lab-dim" colSpan={4}>No cases yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <h2 className="mb-3 text-xl">Cases</h2>
+      <QueryState query={cases} skeleton={<SkeletonRows rows={3} />}>
+        {(rows) => rows.length === 0 ? (
+          <EmptyState icon="trace" title="No cases yet">Run a trace and it will be listed here.</EmptyState>
+        ) : (
+          <Table caption="Trace cases">
+            <thead><tr><Th>Case</Th><Th>Exam</Th><Th>Status</Th><Th>Opened</Th></tr></thead>
+            <tbody>
+              {rows.map((c) => (
+                <Tr key={c.id}>
+                  <Td><Link className="font-medium text-info underline-offset-4 hover:underline" to={`/trace/${c.id}`}>{c.title}</Link></Td>
+                  <Td>{c.examTitle}</Td>
+                  <Td><StatusBadge status={c.status} /></Td>
+                  <Td className="whitespace-nowrap text-fg-muted">{formatDateTime(c.createdAt)}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </QueryState>
     </div>
   );
 }
