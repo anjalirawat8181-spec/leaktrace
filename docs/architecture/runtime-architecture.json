@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "LeakTrace runtime architecture",
-    "output": ".archify/architecture-leaktrace-runtime-20261020-143824/leaktrace-runtime.html",
+    "output": "docs/architecture/runtime-architecture.html",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/anjalirawat8181-spec/leaktrace.git",

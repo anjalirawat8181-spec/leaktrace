@@ -6,3 +6,4 @@ coverage/
 data/
 .claude/skills/
 .claude/settings.local.json
+.archify/
