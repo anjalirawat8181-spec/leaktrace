@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LeakTrace runtime architecture",
+    "output": ".archify/architecture-leaktrace-runtime-20261020-143824/leaktrace-runtime.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/anjalirawat8181-spec/leaktrace.git",
+      "provider": "github",
+      "revision": "b1ee627e22f5b02c0976995f807598d576f90645"
+    }
+  },
+  "components": [
+    {
+      "id": "users", "type": "external", "label": "Users", "sublabel": "Controller · Superintendent · Auditor",
+      "pos": [40, 300], "size": [150, 68],
+      "sources": [{ "path": "packages/shared/src/index.ts", "line": 3, "end_line": 4, "label": "Three roles" }]
+    },
+    {
+      "id": "spa", "type": "frontend", "label": "React SPA", "sublabel": "Vite :5173",
+      "pos": [260, 300], "size": [130, 68],
+      "sources": [
+        { "path": "apps/web/vite.config.ts", "line": 6, "end_line": 10, "label": "/api proxy" },
+        { "path": "apps/web/src/api.ts", "line": 7, "end_line": 14, "label": "Relative /api calls" }
+      ]
+    },
+    {
+      "id": "api", "type": "backend", "label": "API", "sublabel": "Express :4000 · poller + consumer",
+      "pos": [510, 296], "size": [170, 76],
+      "sources": [
+        { "path": "apps/api/src/app.ts", "line": 20, "end_line": 42, "label": "Routes" },
+        { "path": "apps/api/src/auth.ts", "line": 21, "end_line": 51, "label": "Auth + RBAC" },
+        { "path": "apps/api/src/server.ts", "line": 7, "end_line": 15, "label": "Poller + consumer" }
+      ]
+    },
+    {
+      "id": "engine", "type": "backend", "label": "Fingerprint + PDF", "sublabel": "in-process libraries",
+      "pos": [510, 130], "size": [170, 64],
+      "sources": [
+        { "path": "packages/fingerprint/src/index.ts", "line": 413, "label": "generateVectors" },
+        { "path": "packages/fingerprint/src/index.ts", "line": 839, "label": "detectLeak" },
+        { "path": "packages/pdf/src/index.ts", "line": 95, "end_line": 98, "label": "renderCopy" }
+      ]
+    },
+    {
+      "id": "secrets", "type": "security", "label": "Secrets", "sublabel": "JWT_SECRET · FINGERPRINT_KEY",
+      "pos": [490, 470], "size": [210, 64],
+      "sources": [
+        { "path": ".env.example", "line": 1, "end_line": 3, "label": "Required keys" },
+        { "path": "apps/api/src/config.ts", "line": 8, "end_line": 10, "label": "Read at startup" },
+        { "path": "packages/adapters/src/index.ts", "line": 15, "label": "Required list" }
+      ]
+    },
+    {
+      "id": "db", "type": "database", "label": "PostgreSQL 16", "sublabel": "Docker :5434",
+      "pos": [790, 296], "size": [150, 76],
+      "sources": [
+        { "path": "packages/adapters/src/local/queue.ts", "line": 11, "end_line": 15, "label": "Queue insert" },
+        { "path": "packages/adapters/src/local/queue.ts", "line": 33, "end_line": 37, "label": "SKIP LOCKED receive" }
+      ]
+    },
+    {
+      "id": "files", "type": "database", "label": "Local files", "sublabel": "./data",
+      "pos": [790, 470], "size": [150, 64],
+      "sources": [
+        { "path": "packages/adapters/src/local/storage.ts", "line": 28, "end_line": 32, "label": "put" },
+        { "path": "apps/api/src/routes/localFiles.ts", "line": 13, "end_line": 20, "label": "Signed GET" },
+        { "path": "packages/adapters/src/index.ts", "line": 29, "label": "Data dir" }
+      ]
+    },
+    {
+      "id": "worker", "type": "backend", "label": "Worker", "sublabel": "render + merge PDFs",
+      "pos": [1090, 296], "size": [150, 76],
+      "sources": [
+        { "path": "apps/worker/src/main.ts", "line": 24, "end_line": 30, "label": "Queue loop" },
+        { "path": "apps/worker/src/process.ts", "line": 54, "end_line": 56, "label": "Store bundle" },
+        { "path": "apps/worker/src/process.ts", "line": 65, "end_line": 74, "label": "Job progress" }
+      ]
+    }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Client · untrusted", "wraps": ["users", "spa"] },
+    { "kind": "security-group", "label": "API process · JWT cookie + RBAC", "wraps": ["api", "engine"] },
+    { "kind": "region", "label": "Shared state · external dependencies", "wraps": ["db", "files"] }
+  ],
+  "connections": [
+    { "id": "users-to-spa", "from": "users", "to": "spa", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "spa-to-api", "from": "spa", "to": "api", "label": "/api · cookie", "variant": "emphasis" },
+    { "id": "api-to-db", "from": "api", "to": "db", "label": "SQL · enqueue", "variant": "emphasis" },
+    { "id": "worker-to-db", "from": "worker", "to": "db", "label": "poll · progress", "variant": "emphasis" },
+    { "id": "worker-to-files", "from": "worker", "to": "files", "label": "put PDF", "variant": "emphasis" },
+    { "id": "api-to-files", "from": "api", "to": "files", "label": "signed link" },
+    { "id": "api-to-engine", "from": "api", "to": "engine", "label": "in-process" },
+    { "id": "secrets-to-api", "from": "secrets", "to": "api", "label": "env keys", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald", "title": "Primary path",
+      "items": [
+        "Controller generates: the API inserts one copy per seat and enqueues one message per room",
+        "The worker polls Postgres, renders each copy, merges the room and writes ./data/papers/<exam>/<centre>/<room>.pdf",
+        "A superintendent download passes the window check, then receives 120 s signed links"
+      ]
+    },
+    {
+      "dot": "rose", "title": "Trust boundaries",
+      "items": [
+        "Browser is untrusted: httpOnly SameSite=Strict JWT cookie, 8 h",
+        "API enforces requireAuth and requireRole on its routes; bodies are zod-validated",
+        "Signed file links are HMAC-checked; expired or tampered tokens get 403",
+        "The worker has no inbound port and reaches only Postgres and ./data"
+      ]
+    },
+    {
+      "dot": "cyan", "title": "Inside the API process",
+      "items": [
+        "Scheduler poller moves due schedules to the exam-events queue every 10 s",
+        "Exam-events consumer sets RELEASED or CLOSED and publishes release notices",
+        "Demo-set zips and trace analysis run inside API requests"
+      ]
+    },
+    {
+      "dot": "amber", "title": "External dependencies",
+      "items": [
+        "PostgreSQL holds data, queue, schedules, notifications and worker heartbeats",
+        "Local disk holds papers and evidence photos, shared by API and worker",
+        "No AWS code exists yet: createAdapters('aws') throws"
+      ]
+    },
+    {
+      "dot": "violet", "title": "Adapter seam",
+      "items": [
+        "Storage, queue, scheduler, notifier, metrics, config and fleet sit behind packages/adapters",
+        "Mode 'local' is hard-coded in apps/api/src/adapters.ts and apps/worker/src/main.ts"
+      ]
+    }
+  ]
+}
