@@ -1,25 +1,36 @@
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import pino from 'pino';
-import { createAdapters, recordHeartbeat } from '@leaktrace/adapters';
+import { bootstrapAwsAdapters, createAdapters, recordHeartbeat, type Adapters } from '@leaktrace/adapters';
 import { processMessage, type GenerationMessage } from './process';
 
 const logger = pino();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapters = createAdapters('local', { pool });
-const workerId = `worker-${randomUUID().slice(0, 8)}`;
-const deps = { pool, adapters, log: (o: object) => logger.info(o) };
-
-let stopping = false;
-const stop = () => { stopping = true; };
-process.on('SIGTERM', stop);
-process.on('SIGINT', stop);
+const appMode = process.env.APP_MODE === 'aws' ? 'aws' : 'local';
 
 async function main() {
+  let pool: Pool;
+  let adapters: Adapters;
+  if (appMode === 'aws') {
+    const runtime = await bootstrapAwsAdapters();
+    pool = runtime.pool;
+    adapters = runtime.adapters;
+  } else {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    adapters = createAdapters('local', { pool });
+  }
+
+  const workerId = `worker-${randomUUID().slice(0, 8)}`;
+  const deps = { pool, adapters, log: (o: object) => logger.info(o) };
+
+  let stopping = false;
+  const stop = () => { stopping = true; };
+  process.on('SIGTERM', stop);
+  process.on('SIGINT', stop);
+
   const beat = () => recordHeartbeat(pool, workerId).catch((err) => logger.error({ err }, 'heartbeat failed'));
   await beat();
   const timer = setInterval(beat, 10_000);
-  logger.info({ workerId }, 'worker started');
+  logger.info({ workerId, mode: appMode }, 'worker started');
 
   while (!stopping) {
     try {

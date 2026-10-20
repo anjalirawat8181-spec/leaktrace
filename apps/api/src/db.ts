@@ -16,6 +16,10 @@ export async function query<T extends QueryResultRow = any>(
   return result.rows;
 }
 
+export function setPool(p: Pool): void {
+  pool = p;
+}
+
 export async function closePool(): Promise<void> {
   await pool?.end();
   pool = undefined;

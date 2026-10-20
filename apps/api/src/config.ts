@@ -5,6 +5,7 @@ function required(name: string): string {
 }
 
 export const config = {
+  get appMode(): 'aws' | 'local' { return process.env.APP_MODE === 'aws' ? 'aws' : 'local'; },
   get databaseUrl() { return required('DATABASE_URL'); },
   get jwtSecret() { return required('JWT_SECRET'); },
   get fingerprintKey() { return required('FINGERPRINT_KEY'); },

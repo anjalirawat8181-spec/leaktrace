@@ -26,7 +26,7 @@ export function createApp() {
 
   app.get('/api/health', async (_req, res) => {
     await query('SELECT 1');
-    res.json({ ok: true });
+    res.json({ status: 'ok' });
   });
   app.use('/api/auth', authRouter);
   app.use('/api/centres', centresRouter);

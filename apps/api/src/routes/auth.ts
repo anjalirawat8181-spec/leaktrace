@@ -32,7 +32,7 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
   res.cookie(COOKIE_NAME, signSession(user.id), {
     httpOnly: true,
     sameSite: 'strict',
-    secure: process.env.NODE_ENV === 'production',
+    secure: req.secure,
     maxAge: 8 * 3600 * 1000,
   });
   await audit(user.id, 'LOGIN', 'user', user.id, { ip: clientIp(req) });
