@@ -39,3 +39,11 @@ export function createAdapters(mode: 'local' | 'aws', options: LocalOptions = {}
     fleet: new LocalWorkerFleet(pool, Number(config.get('WORKER_DESIRED') ?? 1)),
   };
 }
+export * from './aws/bootstrap';
+export * from './aws/config';
+export * from './aws/fleet';
+export * from './aws/metrics';
+export * from './aws/notifier';
+export * from './aws/queue';
+export * from './aws/scheduler';
+export * from './aws/storage';

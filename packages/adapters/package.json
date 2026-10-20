@@ -4,15 +4,28 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-auto-scaling": "^3.1153.0",
+    "@aws-sdk/client-s3": "^3.1153.0",
+    "@aws-sdk/client-scheduler": "^3.1153.0",
+    "@aws-sdk/client-sns": "^3.1153.0",
+    "@aws-sdk/client-sqs": "^3.1153.0",
+    "@aws-sdk/client-ssm": "^3.1153.0",
+    "@aws-sdk/s3-request-presigner": "^3.1153.0",
     "pg": "^8.13.0"
   },
   "devDependencies": {
+    "@smithy/util-stream": "^4.8.2",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.0",
+    "aws-sdk-client-mock": "^4.1.0",
     "typescript": "^5.0.0"
   }
 }
