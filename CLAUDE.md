@@ -15,10 +15,11 @@ and invigilator. Deterministic code only, no AI/ML. Detailed reference: **docs/C
 ## Commands
 - Setup: `cp .env.example .env && npm install`
 - Dev (Postgres, migrate, build packages, api + worker + web): `npm run dev`; seed once with `npm run seed`
-- Tests: `npm run db:up && npm run db:test` once, then `npm test` (fingerprint, api, worker; DB tests skip if Postgres is down)
+- Tests: `npm run db:up && npm run db:test` once, then `npm test` (fingerprint, adapters, api, worker; DB tests skip if Postgres is down)
 - Build packages: `npm run build:packages` (needed before seed/api/worker). Web: `npm run build --workspace @leaktrace/web`
 - Typecheck: `npm run typecheck --workspace @leaktrace/<api|worker|web>`
 - Fingerprint demo: `npm run fp:demo`
+- Release build (no upload): `npm run package` -> `release/api.tar.gz`, `release/worker.tar.gz`, web in `apps/web/dist`
 - Ports: web 5173, API 4000, Postgres 5434 (docker). Demo users `controller@demo`, `supt.c1@demo`, `supt.c2@demo`, `auditor@demo`.
 
 ## Architecture map
@@ -39,7 +40,9 @@ and invigilator. Deterministic code only, no AI/ML. Detailed reference: **docs/C
 - Every state-changing action writes `audit(...)`; denied downloads also write a `downloads` row, a metric and an ops alert.
 - Time-window logic goes through `apps/api/src/time.ts` (`now()`, `examWindow()`); exam timezone is `Asia/Kolkata`.
 - New external dependency on a service = add a method to an interface in `packages/adapters/src/interfaces.ts` plus a local implementation.
-- Tests live in `apps/*/test` and `packages/fingerprint/test`; they use the separate `leaktrace_test` database.
+- Tests live in `apps/*/test`, `packages/fingerprint/test` and `packages/adapters/test` (AWS SDK mocked, no network); DB tests use `leaktrace_test`.
 
-## Known gaps (see docs/CONTEXT.md section 16)
-No AWS adapter exists yet (`createAdapters('aws')` throws); `'local'` is hard-coded in `apps/api/src/adapters.ts` and `apps/worker/src/main.ts`.
+## AWS mode
+`APP_MODE=aws` loads SSM `/leaktrace/prod` and uses `bootstrapAwsAdapters()` (S3, SQS, SNS, EventBridge Scheduler, ASG) from
+`packages/adapters/src/aws`; default (unset) is local mode. API listens on 80 in AWS mode. EC2 boot scripts are in `infra/`.
+docs/CONTEXT.md predates AWS mode; its "no AWS code" statements are out of date.
