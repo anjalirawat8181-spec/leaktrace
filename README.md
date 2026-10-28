@@ -11,6 +11,23 @@ exact copy, centre, room, seat and invigilator. There is no AI or ML anywhere: e
 Full write-up: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Interactive explorer:
 [docs/architecture/index.html](docs/architecture/index.html) (open it in a browser, or use the GitHub Pages link if enabled).
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Login](docs/screenshots/after/01-login.png) | ![Exams dashboard](docs/screenshots/after/02-dashboard.png) |
+| **Sign in** | **Exams, with the 5-step progress bar** |
+| ![Paper editor](docs/screenshots/after/03-editor.png) | ![Spot the difference](docs/screenshots/after/04-spot-the-difference.png) |
+| **Paper editor** | **Spot the difference between two copies** |
+| ![Centres](docs/screenshots/after/05-centres.png) | ![Generation](docs/screenshots/after/06-generation.png) |
+| **Centres and rooms** | **Generating copies** |
+| ![Schedule](docs/screenshots/after/07-schedule.png) | ![Locked portal](docs/screenshots/after/08-centre-portal-locked.png) |
+| **Release and close schedule** | **Superintendent portal, locked** |
+| ![Portal download](docs/screenshots/after/09-centre-portal-download.png) | ![Trace verdict](docs/screenshots/after/10-trace-verdict.png) |
+| **Superintendent portal, download open** | **Find a leak: the verdict** |
+| ![Audit log](docs/screenshots/after/11-audit-log.png) | ![Outbox](docs/screenshots/after/12-outbox.png) |
+| **Audit log** | **Notification outbox** |
+
 ## Features by role
 
 **Controller**
