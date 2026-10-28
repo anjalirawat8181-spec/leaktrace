@@ -24,6 +24,7 @@ export interface User { id: string; email: string; name: string; role: Role; cen
 export interface Exam {
   id: string; title: string; subject: string; startsAt: string; durationMin: number;
   releaseLeadMin: number; closeAfterMin: number;
+  releaseAt: string | null; closeAt: string | null; hasTemplate: boolean;
   status: 'DRAFT' | 'GENERATING' | 'READY' | 'SCHEDULED' | 'RELEASED' | 'CLOSED';
 }
 

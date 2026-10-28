@@ -48,6 +48,10 @@ export class LocalStorage implements Storage {
     }
   }
 
+  async delete(key: string): Promise<void> {
+    await fs.rm(this.resolve(key), { force: true });
+  }
+
   private sign(payload: string): string {
     return createHmac('sha256', this.secret).update(payload).digest('base64url');
   }

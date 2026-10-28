@@ -35,7 +35,7 @@ export class EnvConfig implements Config {
   }
 }
 
-export const HEARTBEAT_WINDOW_SEC = 30;
+export const HEARTBEAT_WINDOW_SEC = 60;
 
 export async function recordHeartbeat(pool: Pool, workerId: string): Promise<void> {
   await pool.query(
@@ -46,13 +46,17 @@ export async function recordHeartbeat(pool: Pool, workerId: string): Promise<voi
 }
 
 export class LocalWorkerFleet implements WorkerFleet {
-  constructor(private readonly pool: Pool, private readonly desired = 1) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly desired = 1,
+    private readonly windowSec = HEARTBEAT_WINDOW_SEC,
+  ) {}
 
   async status() {
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS n FROM worker_heartbeats
        WHERE at > now() - make_interval(secs => $1)`,
-      [HEARTBEAT_WINDOW_SEC],
+      [this.windowSec],
     );
     return { desired: this.desired, inService: rows[0].n as number };
   }

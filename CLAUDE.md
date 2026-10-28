@@ -2,7 +2,7 @@
 
 Exam-paper fingerprinting and leak tracing. Each printed copy of an exam paper gets a unique, meaning-preserving
 wording (a secret "fingerprint vector"); pasting leaked text into the Trace Lab names the copy, centre, room, seat
-and invigilator. Deterministic code only, no AI/ML. Detailed reference: **docs/CONTEXT.md**. Spec: docs/prompt-app.md.
+and invigilator. Deterministic code only, no AI/ML. Architecture: **docs/ARCHITECTURE.md**; deploy steps: **DEPLOY-NOTES.md**.
 
 ## Rules (do not break)
 - Never put AWS keys, tokens or any secret in code, tests, docs or commits. `.env` is gitignored; only `.env.example` is committed.
@@ -19,7 +19,8 @@ and invigilator. Deterministic code only, no AI/ML. Detailed reference: **docs/C
 - Build packages: `npm run build:packages` (needed before seed/api/worker). Web: `npm run build --workspace @leaktrace/web`
 - Typecheck: `npm run typecheck --workspace @leaktrace/<api|worker|web>`
 - Fingerprint demo: `npm run fp:demo`
-- Release build (no upload): `npm run package` -> `release/api.tar.gz`, `release/worker.tar.gz`, web in `apps/web/dist`
+- Release build (no upload): `npm run package` -> `release/{api,worker,web}.tar.gz` + infra scripts. Deploy steps: `DEPLOY-NOTES.md`
+- Full local walkthrough as every role: `npm run e2e` (about 3 min, needs Docker)
 - Ports: web 5173, API 4000, Postgres 5434 (docker). Demo users `controller@demo`, `supt.c1@demo`, `supt.c2@demo`, `auditor@demo`.
 
 ## Architecture map
@@ -43,6 +44,6 @@ and invigilator. Deterministic code only, no AI/ML. Detailed reference: **docs/C
 - Tests live in `apps/*/test`, `packages/fingerprint/test` and `packages/adapters/test` (AWS SDK mocked, no network); DB tests use `leaktrace_test`.
 
 ## AWS mode
-`APP_MODE=aws` loads SSM `/leaktrace/prod` and uses `bootstrapAwsAdapters()` (S3, SQS, SNS, EventBridge Scheduler, ASG) from
-`packages/adapters/src/aws`; default (unset) is local mode. API listens on 80 in AWS mode. EC2 boot scripts are in `infra/`.
-docs/CONTEXT.md predates AWS mode; its "no AWS code" statements are out of date.
+`APP_MODE=aws` (API listens on 127.0.0.1:`PORT`, default 3000; nginx on port 80 serves `apps/web/dist` and proxies `/api/`) loads SSM `/leaktrace/prod` and uses `bootstrapAwsAdapters()` (S3, SQS, SNS, EventBridge Scheduler, ASG) from
+`packages/adapters/src/aws`; default (unset) is local mode. Workers online = DB heartbeats (60 s window), no AWS call. EC2 scripts: `infra/` (`redeploy-api.sh` updates a live server).
+DB changes go in `db/migrations/*.sql` (idempotent); `npm run build --workspace @leaktrace/api` embeds them for `migrate.js`.

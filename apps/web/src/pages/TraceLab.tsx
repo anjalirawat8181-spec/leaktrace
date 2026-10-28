@@ -55,11 +55,11 @@ export default function TraceLabPage({ user }: { user: User }) {
 
   return (
     <div className="max-w-5xl">
-      <PageHeader title="Trace Lab" subtitle="Paste leaked text and find the copy it came from." />
+      <PageHeader title="Find a leak" subtitle="Paste text from a leaked paper. LeakTrace finds which copy it came from, and who had it." />
 
       {canRun ? (
         <Card className="mb-8">
-          <CardHeader title="New trace case">A few lines are enough; typos in the leak are tolerated.</CardHeader>
+          <CardHeader title="New leak case">A few lines are enough. Small typos in the leaked text are fine.</CardHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Exam">
@@ -84,12 +84,12 @@ export default function TraceLabPage({ user }: { user: User }) {
             </Field>
             {error && <Notice tone="danger">{error}</Notice>}
             <Button type="submit" variant="primary" icon="trace" loading={busy} disabled={!leakText.trim() || !title.trim()}>
-              {busy ? 'Preparing…' : 'Run trace'}
+              {busy ? 'Preparing…' : 'Find the copy'}
             </Button>
           </form>
         </Card>
       ) : (
-        <Notice tone="info" icon="eye" className="mb-8">Read-only access: open a case below to review its result.</Notice>
+        <Notice tone="info" icon="eye" className="mb-8">You can read leak cases but not start new ones. Open a case below to see its result.</Notice>
       )}
 
       <h2 className="mb-3 text-xl">Cases</h2>

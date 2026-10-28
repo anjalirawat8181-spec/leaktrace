@@ -67,7 +67,7 @@ export default function CentresPage() {
     <div>
       <PageHeader
         title="Centres & rooms"
-        subtitle="Each seat becomes one uniquely fingerprinted copy."
+        subtitle="Where the exam is held and how many seats each room has. Every seat gets its own copy (20 in total at most)."
         actions={data.data && (() => {
           const { totalSeats, maxCopies } = data.data;
           const over = totalSeats > maxCopies;

@@ -6,13 +6,13 @@ import { Badge, Button, Icon, cx, type IconName } from './ui';
 interface NavItem { to: string; label: string; icon: IconName; end?: boolean }
 
 function navFor(user: User): NavItem[] {
-  if (user.role === 'SUPERINTENDENT') return [{ to: '/', label: 'Centre portal', icon: 'unlock', end: true }];
+  if (user.role === 'SUPERINTENDENT') return [{ to: '/', label: 'Download papers', icon: 'unlock', end: true }];
   const items: NavItem[] = [{ to: '/', label: 'Exams', icon: 'exams', end: true }];
   if (user.role === 'CONTROLLER') items.push({ to: '/centres', label: 'Centres & rooms', icon: 'centres' });
   items.push(
-    { to: '/trace', label: 'Trace Lab', icon: 'trace' },
+    { to: '/trace', label: 'Find a leak', icon: 'trace' },
     { to: '/audit', label: 'Audit log', icon: 'audit' },
-    { to: '/outbox', label: 'Outbox', icon: 'outbox' },
+    { to: '/outbox', label: 'Alerts', icon: 'outbox' },
   );
   return items;
 }

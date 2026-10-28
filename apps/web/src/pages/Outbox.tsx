@@ -12,6 +12,10 @@ const TOPIC: Record<string, { tone: Tone; icon: IconName; card: 'danger' | 'warn
   'release-notices': { tone: 'ok', icon: 'unlock', card: 'ok' },
 };
 
+const TOPIC_LABEL: Record<string, string> = {
+  'leak-alerts': 'Leak alert', 'ops-alerts': 'Blocked download', 'release-notices': 'Paper released',
+};
+
 export default function OutboxPage() {
   const list = useQuery({
     queryKey: ['notifications'],
@@ -20,10 +24,10 @@ export default function OutboxPage() {
   });
   return (
     <div className="max-w-4xl">
-      <PageHeader title="Outbox" subtitle="Every notification the app has published." />
+      <PageHeader title="Alerts" subtitle="Alerts the system has sent out: leaks found, blocked downloads and papers released." />
       <QueryState query={list} skeleton={<SkeletonRows rows={4} />}>
         {(items) => items.length === 0 ? (
-          <EmptyState icon="outbox" title="Nothing published yet">Alerts and release notices appear here.</EmptyState>
+          <EmptyState icon="outbox" title="No alerts yet">Leak alerts, blocked downloads and release notices appear here.</EmptyState>
         ) : (
           <ul className="space-y-4">
             {items.map((n) => {
@@ -32,7 +36,7 @@ export default function OutboxPage() {
                 <li key={n.id}>
                   <Card tone={t.card}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Badge tone={t.tone} icon={t.icon}>{n.topic}</Badge>
+                      <Badge tone={t.tone} icon={t.icon}>{TOPIC_LABEL[n.topic] ?? n.topic}</Badge>
                       <time dateTime={n.at} className="data-num text-xs text-fg-muted">{formatDateTime(n.at)}</time>
                     </div>
                     <h2 className="mt-3 text-lg">{n.subject}</h2>

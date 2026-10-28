@@ -2,6 +2,7 @@ export interface Storage {
   put(key: string, body: Buffer | Uint8Array | string, contentType: string): Promise<void>;
   get(key: string): Promise<Buffer>;
   exists(key: string): Promise<boolean>;
+  delete(key: string): Promise<void>;
   signedDownloadUrl(key: string, ttlSec: number): Promise<string>;
   signedUploadUrl(key: string, contentType: string, ttlSec: number): Promise<string>;
 }

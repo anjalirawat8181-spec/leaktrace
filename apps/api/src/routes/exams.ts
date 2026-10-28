@@ -5,10 +5,13 @@ import {
   capacityBits, generateVectors, parseTemplate, renderTemplate,
   type ParsedTemplate,
 } from '@leaktrace/fingerprint';
+import { getAdapters } from '../adapters';
 import { requireAuth, requireRole } from '../auth';
 import { config } from '../config';
 import { audit, getPool, query } from '../db';
 import { wordDiff } from '../diff';
+import { logger } from '../logger';
+import { closeScheduleName, releaseScheduleName } from '../time';
 import { scheduleInfo } from './schedule';
 
 export const examsRouter = Router();
@@ -22,6 +25,9 @@ const examJson = (e: any) => ({
   durationMin: e.duration_min,
   releaseLeadMin: e.release_lead_min,
   closeAfterMin: e.close_after_min,
+  releaseAt: e.release_at ? new Date(e.release_at).toISOString() : null,
+  closeAt: e.close_at ? new Date(e.close_at).toISOString() : null,
+  hasTemplate: Boolean(e.has_template),
   status: e.status,
 });
 
@@ -65,7 +71,10 @@ async function loadTemplate(examId: string) {
 }
 
 examsRouter.get('/', requireRole('CONTROLLER', 'AUDITOR'), async (_req, res) => {
-  const rows = await query('SELECT * FROM exams ORDER BY starts_at DESC');
+  const rows = await query(
+    `SELECT e.*, EXISTS (SELECT 1 FROM paper_templates t WHERE t.exam_id = e.id) AS has_template
+     FROM exams e ORDER BY e.starts_at DESC`,
+  );
   res.json(rows.map(examJson));
 });
 
@@ -186,4 +195,51 @@ examsRouter.get('/:id/spot-the-difference', requireRole('CONTROLLER'), async (re
     a: { serial: first + 1, text: a, ranges: diff.a },
     b: { serial: second + 1, text: b, ranges: diff.b },
   });
+});
+
+examsRouter.delete('/:id', requireRole('CONTROLLER'), async (req, res) => {
+  const exam = await loadExam(req.params.id);
+  if (!exam) return res.status(404).json({ error: 'Exam not found' });
+  const typed = typeof req.body?.confirmTitle === 'string' ? req.body.confirmTitle.trim() : '';
+  if (typed !== exam.title.trim()) {
+    return res.status(400).json({ error: 'Type the exact exam title to confirm the delete' });
+  }
+
+  const fileKeys = new Set<string>();
+  for (const r of await query('SELECT DISTINCT storage_key FROM copies WHERE exam_id=$1 AND storage_key IS NOT NULL', [exam.id])) {
+    fileKeys.add(r.storage_key);
+  }
+  for (const r of await query('SELECT evidence_key FROM trace_cases WHERE exam_id=$1 AND evidence_key IS NOT NULL', [exam.id])) {
+    fileKeys.add(r.evidence_key);
+  }
+  const [{ copies }] = await query('SELECT count(*)::int AS copies FROM copies WHERE exam_id=$1', [exam.id]);
+  const [{ cases }] = await query('SELECT count(*)::int AS cases FROM trace_cases WHERE exam_id=$1', [exam.id]);
+
+  await query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  await audit(req.user!.id, 'EXAM_DELETED', 'exam', exam.id, {
+    examId: exam.id, title: exam.title, status: exam.status, copies, traceCases: cases, files: fileKeys.size,
+  });
+
+  const { storage, scheduler } = getAdapters();
+  let filesRemoved = 0;
+  let filesFailed = 0;
+  for (const key of fileKeys) {
+    try {
+      await storage.delete(key);
+      filesRemoved++;
+    } catch (err) {
+      filesFailed++;
+      logger.error({ err, key, examId: exam.id }, 'could not delete exam file');
+    }
+  }
+  let schedulesFailed = 0;
+  for (const name of [releaseScheduleName(exam.id), closeScheduleName(exam.id)]) {
+    try {
+      await scheduler.cancel(name);
+    } catch (err) {
+      schedulesFailed++;
+      logger.error({ err, name, examId: exam.id }, 'could not delete exam schedule');
+    }
+  }
+  res.json({ deleted: true, filesRemoved, filesFailed, schedulesFailed });
 });

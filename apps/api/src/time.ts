@@ -24,13 +24,18 @@ export interface ExamWindow {
   state: WindowState;
 }
 
-export function examWindow(
-  exam: { starts_at: Date | string; release_lead_min: number; close_after_min: number },
-  at: Date = now(),
-): ExamWindow {
+export interface ExamTimes {
+  starts_at: Date | string;
+  release_lead_min: number;
+  close_after_min: number;
+  release_at?: Date | string | null;
+  close_at?: Date | string | null;
+}
+
+export function examWindow(exam: ExamTimes, at: Date = now()): ExamWindow {
   const start = new Date(exam.starts_at).getTime();
-  const opensAt = new Date(start - exam.release_lead_min * 60_000);
-  const closesAt = new Date(start + exam.close_after_min * 60_000);
+  const opensAt = exam.release_at ? new Date(exam.release_at) : new Date(start - exam.release_lead_min * 60_000);
+  const closesAt = exam.close_at ? new Date(exam.close_at) : new Date(start + exam.close_after_min * 60_000);
   const state: WindowState = at < opensAt ? 'BEFORE' : at > closesAt ? 'CLOSED' : 'OPEN';
   return { opensAt, closesAt, state };
 }

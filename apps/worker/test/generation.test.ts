@@ -157,9 +157,43 @@ describe('generation pipeline (M3)', async () => {
     expect(await adapters.queue.depth('generation')).toBe(0);
   });
 
+  it('stores the worker error so the Generation page can show it', async () => {
+    const [job] = await query('INSERT INTO generation_jobs (exam_id, total) VALUES ($1, 1) RETURNING id', [examId]);
+    const body = { examId, jobId: job.id, roomId: examId, copyIds: [examId] };
+    await processMessage(deps, { id: 'm1', body, receiptHandle: 'r', receiveCount: 1 });
+    let row = (await query('SELECT * FROM generation_jobs WHERE id=$1', [job.id]))[0];
+    expect(row.last_error).toMatch(/Copy rows missing/);
+    expect(row).toMatchObject({ failed: 0, failed_messages: 0, status: 'RUNNING' });
+
+    await processMessage(deps, { id: 'm1', body, receiptHandle: 'r', receiveCount: 3 });
+    row = (await query('SELECT * FROM generation_jobs WHERE id=$1', [job.id]))[0];
+    expect(row).toMatchObject({ failed: 1, failed_messages: 1, status: 'FAILED' });
+
+    const status = await agent.get(`/api/exams/${examId}/generation`).expect(200);
+    expect(status.body.job).toMatchObject({ status: 'FAILED', failed: 1 });
+    expect(status.body.job.lastError).toMatch(/Copy rows missing/);
+    expect(status.body.deadLetterDepth).toBeGreaterThanOrEqual(1);
+    expect(status.body.warnings).toEqual([]);
+    expect(status.body.mode).toBe('local');
+  });
+
+  it('keeps working when one status check fails, and says which', async () => {
+    const real = adapters.queue.depth.bind(adapters.queue);
+    (adapters.queue as any).depth = async () => { throw new Error('AccessDenied: sqs:GetQueueAttributes'); };
+    const status = await agent.get(`/api/exams/${examId}/generation`).expect(200);
+    (adapters.queue as any).depth = real;
+    expect(status.body.queueDepth).toBeNull();
+    expect(status.body.warnings.join(' ')).toMatch(/AccessDenied/);
+    expect(status.body.workers).toBeTruthy();
+  });
+
   it('reports workers online from heartbeats', async () => {
     expect((await adapters.fleet.status()).inService).toBe(0);
     await query("INSERT INTO worker_heartbeats (worker_id) VALUES ('w1')");
     expect(await adapters.fleet.status()).toEqual({ desired: 1, inService: 1 });
+    await query("UPDATE worker_heartbeats SET at = now() - interval '45 seconds'");
+    expect((await adapters.fleet.status()).inService).toBe(1);
+    await query("UPDATE worker_heartbeats SET at = now() - interval '90 seconds'");
+    expect((await adapters.fleet.status()).inService).toBe(0);
   });
 });

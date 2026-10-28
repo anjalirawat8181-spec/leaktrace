@@ -5,14 +5,13 @@ import { startExamEventConsumer } from './events';
 import { checkRequiredConfig, config } from './config';
 import { setPool } from './db';
 
-const AWS_PORT = 80;
-
 async function main() {
   let adapters: Adapters;
   let port: number;
+  let host: string | undefined;
 
   if (config.appMode === 'aws') {
-    const runtime = await bootstrapAwsAdapters();
+    const runtime = await bootstrapAwsAdapters('api');
     for (const key of ['JWT_SECRET', 'FINGERPRINT_KEY']) {
       const value = runtime.config.get(key);
       if (!value) throw new Error(`Missing SSM parameter ${key}`);
@@ -21,7 +20,8 @@ async function main() {
     setPool(runtime.pool);
     setAdapters(runtime.adapters);
     adapters = runtime.adapters;
-    port = AWS_PORT;
+    port = config.awsPort;
+    host = config.awsHost;
   } else {
     checkRequiredConfig();
     adapters = getAdapters();
@@ -32,9 +32,9 @@ async function main() {
   }
 
   startExamEventConsumer(adapters, (err) => logger.error({ err }, 'exam-events consumer failed'));
-  createApp().listen(port, () => {
-    logger.info({ port, mode: config.appMode }, 'LeakTrace API listening');
-  });
+  const onListening = () => logger.info({ port, host: host ?? 'all interfaces', mode: config.appMode }, 'LeakTrace API listening');
+  if (host) createApp().listen(port, host, onListening);
+  else createApp().listen(port, onListening);
 }
 
 main().catch((err) => {

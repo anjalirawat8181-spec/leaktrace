@@ -1,14 +1,17 @@
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LocalMetrics, LocalScheduler } from '@leaktrace/adapters';
+import { LocalMetrics, LocalScheduler, localIsoToUtc } from '@leaktrace/adapters';
 import { seedPaper } from '@leaktrace/fingerprint/dist/seed-paper';
 import { getAdapters } from '../../api/src/adapters';
 import { createApp } from '../../api/src/app';
 import { closePool, getPool, query } from '../../api/src/db';
 import { consumeExamEvents } from '../../api/src/events';
-import { setClock } from '../../api/src/time';
+import { setClock, wallClockIso } from '../../api/src/time';
 import { processMessage, type GenerationMessage } from '../src/process';
+
+const ist = (minutesAhead: number) => wallClockIso(new Date(Date.now() + minutesAhead * 60_000)).slice(0, 16);
+const IST = 'Asia/Kolkata';
 
 async function fetchBinary(server: any, path: string, cookie = '') {
   const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { headers: { cookie } });
@@ -102,17 +105,19 @@ describe('release window (M4)', async () => {
 
   it('schedules release and close with the documented names and times', async () => {
     const id = await readyExam('Early exam', 120);
-    const res = await controller.post(`/api/exams/${id}/schedule`).send({}).expect(200);
+    const when = { releaseAt: ist(90), closeAt: ist(150) };
+    const res = await controller.post(`/api/exams/${id}/schedule`).send(when).expect(200);
     expect(res.body.release.name).toBe(`leaktrace-release-${id}`);
     expect(res.body.close.name).toBe(`leaktrace-close-${id}`);
 
     const exam = (await query('SELECT * FROM exams WHERE id=$1', [id]))[0];
     expect(exam.status).toBe('SCHEDULED');
     const rows = await query('SELECT name, fire_at, payload FROM local_schedules ORDER BY fire_at');
-    const start = Math.floor(new Date(exam.starts_at).getTime() / 1000) * 1000;
     expect(rows.map((r) => r.name)).toEqual([`leaktrace-release-${id}`, `leaktrace-close-${id}`]);
-    expect(new Date(rows[0].fire_at).getTime()).toBe(start - 15 * 60_000);
-    expect(new Date(rows[1].fire_at).getTime()).toBe(start + 30 * 60_000);
+    expect(new Date(rows[0].fire_at).getTime()).toBe(localIsoToUtc(when.releaseAt, IST).getTime());
+    expect(new Date(rows[1].fire_at).getTime()).toBe(localIsoToUtc(when.closeAt, IST).getTime());
+    expect(new Date(exam.release_at).getTime()).toBe(localIsoToUtc(when.releaseAt, IST).getTime());
+    expect(new Date(exam.close_at).getTime()).toBe(localIsoToUtc(when.closeAt, IST).getTime());
     expect(rows[0].payload).toEqual({ type: 'RELEASE', examId: id });
 
     expect(await scheduler.fireDue()).toBe(0);
@@ -136,8 +141,12 @@ describe('release window (M4)', async () => {
   it('releases via the scheduler and exam-events consumer, then serves only the own centre', async () => {
     await query("DELETE FROM local_schedules");
     const id = await readyExam('Live exam', 5);
-    await controller.post(`/api/exams/${id}/schedule`).send({}).expect(200);
+    await controller.post(`/api/exams/${id}/schedule`).send({ releaseAt: ist(2), closeAt: ist(40) }).expect(200);
+    const locked = await suptA.get('/api/centre/exams').expect(200);
+    expect(locked.body.exams.find((e: any) => e.id === id)).toMatchObject({ state: 'LOCKED', windowState: 'BEFORE' });
 
+    await query("UPDATE exams SET release_at = now() - interval '1 minute' WHERE id=$1", [id]);
+    await query("UPDATE local_schedules SET fire_at = now() - interval '1 second' WHERE name LIKE 'leaktrace-release-%'");
     expect(await scheduler.fireDue()).toBe(1);
     expect(await consumeExamEvents(adapters)).toBe(1);
     expect((await query('SELECT status FROM exams WHERE id=$1', [id]))[0].status).toBe('RELEASED');
@@ -145,7 +154,7 @@ describe('release window (M4)', async () => {
     expect(notices.map((n) => n.subject)).toContain('PAPER RELEASED: Live exam');
 
     const list = await suptA.get('/api/centre/exams').expect(200);
-    expect(list.body.exams.find((e: any) => e.id === id)).toMatchObject({ windowState: 'OPEN', status: 'RELEASED' });
+    expect(list.body.exams.find((e: any) => e.id === id)).toMatchObject({ windowState: 'OPEN', status: 'RELEASED', state: 'OPEN' });
     expect(list.body.exams[0].rooms.map((r: any) => r.name)).toEqual(['A-R1', 'A-R2']);
 
     const ok = await suptA.post(`/api/centre/exams/${id}/download`).send({}).expect(200);
@@ -180,6 +189,106 @@ describe('release window (M4)', async () => {
     expect((await query('SELECT status FROM exams WHERE id=$1', [id]))[0].status).toBe('CLOSED');
     const denied = await suptA.post(`/api/centre/exams/${id}/download`).send({});
     expect(denied.body.reason).toBe('CLOSED');
+  });
+
+  it('rejects schedules that do not make sense, in plain words', async () => {
+    const id = await readyExam('Bad times', 120);
+    const post = (body: object) => controller.post(`/api/exams/${id}/schedule`).send(body);
+    expect((await post({})).status).toBe(400);
+    expect((await post({ releaseAt: 'soon', closeAt: ist(60) })).status).toBe(400);
+    const past = await post({ releaseAt: ist(-10), closeAt: ist(60) });
+    expect(past.status).toBe(422);
+    expect(past.body.error).toMatch(/at least 1 minute from now/);
+    const backwards = await post({ releaseAt: ist(30), closeAt: ist(20) });
+    expect(backwards.status).toBe(422);
+    expect(backwards.body.error).toMatch(/after the release time/);
+    expect((await query('SELECT status FROM exams WHERE id=$1', [id]))[0].status).toBe('READY');
+    await auditor.post(`/api/exams/${id}/schedule`).send({ releaseAt: ist(30), closeAt: ist(60) }).expect(403);
+  });
+
+  it('shows a superintendent only exams for their own centre, and closed ones for 24 hours', async () => {
+    const id = await readyExam('Window exam', 120);
+    await controller.post(`/api/exams/${id}/schedule`).send({ releaseAt: ist(10), closeAt: ist(60) }).expect(200);
+    const idle = await suptA.get('/api/centre/exams').expect(200);
+    expect(idle.body.exams.find((e: any) => e.id === id)).toMatchObject({ state: 'LOCKED' });
+
+    await query("UPDATE exams SET status='CLOSED', release_at = now() - interval '25 hours', close_at = now() - interval '23 hours' WHERE id=$1", [id]);
+    const recent = await suptA.get('/api/centre/exams').expect(200);
+    expect(recent.body.exams.find((e: any) => e.id === id)).toMatchObject({ state: 'CLOSED' });
+
+    await query("UPDATE exams SET close_at = now() - interval '25 hours' WHERE id=$1", [id]);
+    const old = await suptA.get('/api/centre/exams').expect(200);
+    expect(old.body.exams.find((e: any) => e.id === id)).toBeUndefined();
+
+    const hash = await bcrypt.hash('pw-123456', 4);
+    const empty = await controller.post('/api/centres').send({ code: 'C', name: 'Centre C', city: 'Pune' }).expect(201);
+    await query(
+      "INSERT INTO users (email, password_hash, name, role, centre_id) VALUES ('sC@test',$1,'Supt C','SUPERINTENDENT',$2)",
+      [hash, empty.body.id],
+    );
+    const suptC = request.agent(server);
+    await suptC.post('/api/auth/login').send({ email: 'sC@test', password: 'pw-123456' }).expect(200);
+    await query("UPDATE exams SET close_at = now() + interval '1 hour' WHERE id=$1", [id]);
+    const none = await suptC.get('/api/centre/exams').expect(200);
+    expect(none.body.exams).toEqual([]);
+  });
+
+  it('deletes an exam everywhere but keeps the audit history', async () => {
+    const id = await readyExam('Doomed exam', 120);
+    await controller.post(`/api/exams/${id}/schedule`).send({ releaseAt: ist(5), closeAt: ist(60) }).expect(200);
+    await query("UPDATE exams SET release_at = now() - interval '1 minute' WHERE id=$1", [id]);
+    await query("UPDATE local_schedules SET fire_at = now() - interval '1 second' WHERE name = $1", [`leaktrace-release-${id}`]);
+    await scheduler.fireDue();
+    await consumeExamEvents(adapters);
+    await suptA.post(`/api/centre/exams/${id}/download`).send({}).expect(200);
+    const keys = (await query('SELECT DISTINCT storage_key FROM copies WHERE exam_id=$1', [id])).map((r) => r.storage_key);
+    expect(keys).toHaveLength(4);
+    for (const key of keys) expect(await adapters.storage.exists(key)).toBe(true);
+    await controller.post('/api/trace/cases').send({ examId: id, title: 'case', leakText: 'some leaked text' }).expect(201);
+    const downloadsBefore = (await query('SELECT count(*)::int AS n FROM downloads WHERE exam_id=$1', [id]))[0].n;
+    expect(downloadsBefore).toBeGreaterThan(0);
+
+    await auditor.delete(`/api/exams/${id}`).send({ confirmTitle: 'Doomed exam' }).expect(403);
+    await suptA.delete(`/api/exams/${id}`).send({ confirmTitle: 'Doomed exam' }).expect(403);
+    const wrong = await controller.delete(`/api/exams/${id}`).send({ confirmTitle: 'doomed' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error).toMatch(/exact exam title/);
+    expect((await query('SELECT 1 FROM exams WHERE id=$1', [id])).length).toBe(1);
+
+    const res = await controller.delete(`/api/exams/${id}`).send({ confirmTitle: 'Doomed exam' }).expect(200);
+    expect(res.body).toMatchObject({ deleted: true, filesRemoved: 4, filesFailed: 0, schedulesFailed: 0 });
+
+    for (const table of ['exams', 'copies', 'paper_templates', 'trace_cases', 'generation_jobs']) {
+      const col = table === 'exams' ? 'id' : 'exam_id';
+      expect((await query(`SELECT 1 FROM ${table} WHERE ${col}=$1`, [id])).length).toBe(0);
+    }
+    expect(await query('SELECT 1 FROM local_schedules WHERE name LIKE $1', [`%${id}`])).toHaveLength(0);
+    for (const key of keys) expect(await adapters.storage.exists(key)).toBe(false);
+
+    const kept = await query("SELECT exam_id FROM downloads WHERE reason='OK' ORDER BY at DESC LIMIT 1");
+    expect(kept[0].exam_id).toBeNull();
+    const trail = await auditor.get('/api/audit').query({ type: 'EXAM_DELETED' }).expect(200);
+    expect(trail.body[0]).toMatchObject({ action: 'EXAM_DELETED', details: { title: 'Doomed exam', copies: 20, traceCases: 1, files: 4 } });
+    const history = await auditor.get('/api/audit').query({ type: 'EXAM_SCHEDULED' }).expect(200);
+    expect(history.body.some((e: any) => e.details.examId === id)).toBe(true);
+
+    for (const who of [controller, auditor]) {
+      expect((await who.get('/api/exams').expect(200)).body.some((e: any) => e.id === id)).toBe(false);
+    }
+    expect((await suptA.get('/api/centre/exams').expect(200)).body.exams.some((e: any) => e.id === id)).toBe(false);
+    await controller.get(`/api/exams/${id}`).expect(404);
+    await controller.delete(`/api/exams/${id}`).send({ confirmTitle: 'Doomed exam' }).expect(404);
+    await suptA.post(`/api/centre/exams/${id}/download`).send({}).expect(404);
+  });
+
+  it('quietly drops worker messages for an exam that was deleted', async () => {
+    const id = await readyExam('Gone exam', 120);
+    const jobs = await query('SELECT id FROM generation_jobs WHERE exam_id=$1', [id]);
+    await adapters.queue.send('generation', { examId: id, jobId: jobs[0].id, roomId: id, copyIds: [id], rerender: true });
+    await controller.delete(`/api/exams/${id}`).send({ confirmTitle: 'Gone exam' }).expect(200);
+    await drain();
+    expect(await adapters.queue.depth('generation')).toBe(0);
+    expect(await adapters.queue.depth('generation-dlq')).toBe(0);
   });
 
   it('lists notifications for controller and auditor only', async () => {

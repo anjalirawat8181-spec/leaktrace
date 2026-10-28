@@ -86,5 +86,21 @@ for (const { name, entry } of apps) {
 }
 
 fs.rmSync(tarballs, { recursive: true, force: true });
-if (!fs.existsSync(path.join(root, 'apps', 'web', 'dist', 'index.html'))) throw new Error('apps/web/dist/index.html missing');
-console.log('Release artifacts ready in release/');
+
+const webDist = path.join(root, 'apps', 'web', 'dist');
+if (!fs.existsSync(path.join(webDist, 'index.html'))) throw new Error('apps/web/dist/index.html missing');
+const webArchive = path.join(release, 'web.tar.gz');
+run('tar', ['-czf', webArchive, '-C', webDist, '.']);
+const webListing = capture('tar', ['-tzf', webArchive]).split('\n').map((l) => l.replace(/^\.\//, ''));
+if (!webListing.includes('index.html')) throw new Error('web.tar.gz must have index.html at its root');
+if (!webListing.some((l) => l.startsWith('assets/'))) throw new Error('web.tar.gz is missing its assets folder');
+
+for (const script of ['redeploy-api.sh', 'user-data-api.sh', 'user-data-worker.sh']) {
+  fs.copyFileSync(path.join(root, 'infra', script), path.join(release, script));
+}
+
+console.log('\nRelease artifacts:');
+for (const file of ['api.tar.gz', 'worker.tar.gz', 'web.tar.gz', 'redeploy-api.sh', 'user-data-api.sh', 'user-data-worker.sh']) {
+  const full = path.join(release, file);
+  console.log(`  ${full}  (${(fs.statSync(full).size / 1024 / 1024).toFixed(1)} MB)`);
+}

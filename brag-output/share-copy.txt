@@ -1,0 +1,2 @@
+Introducing LeakTrace: forensic exam-paper distribution and leak tracing.
+Every copy is worded differently, so a few leaked lines name the exact copy, centre, room, seat and invigilator. No AI, just deterministic code.

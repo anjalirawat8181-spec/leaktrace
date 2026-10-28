@@ -6,6 +6,7 @@ import { buildAnswerKey, renderCopy, visibleCode } from '@leaktrace/pdf';
 import { getAdapters } from '../adapters';
 import { requireAuth, requireRole } from '../auth';
 import { config } from '../config';
+import { logger } from '../logger';
 import { audit, getPool, query } from '../db';
 
 export const generationRouter = Router();
@@ -40,14 +41,25 @@ async function roomJobs(examId: string): Promise<RoomJob[]> {
   return [...jobs.values()];
 }
 
+class QueueSendError extends Error {}
+
 async function enqueueJob(examId: string, rerender: boolean): Promise<{ jobId: string; rooms: number; copies: number }> {
   const jobs = await roomJobs(examId);
   const copies = jobs.reduce((n, j) => n + j.copyIds.length, 0);
   const [job] = await query(
     'INSERT INTO generation_jobs (exam_id, total) VALUES ($1,$2) RETURNING id', [examId, copies],
   );
-  for (const j of jobs) {
-    await getAdapters().queue.send('generation', { examId, jobId: job.id, rerender, ...j });
+  try {
+    for (const j of jobs) {
+      await getAdapters().queue.send('generation', { examId, jobId: job.id, rerender, ...j });
+    }
+  } catch (err) {
+    const message = `Could not put the job on the queue: ${(err as Error).message}`;
+    logger.error({ err, examId, jobId: job.id }, 'enqueue failed');
+    await query(
+      "UPDATE generation_jobs SET status='FAILED', last_error=$2, finished_at=now() WHERE id=$1", [job.id, message.slice(0, 1000)],
+    );
+    throw new QueueSendError(message);
   }
   return { jobId: job.id, rooms: jobs.length, copies };
 }
@@ -110,7 +122,13 @@ generationRouter.post('/:id/generate', async (req, res) => {
     client.release();
   }
 
-  const queued = await enqueueJob(exam.id, false);
+  let queued;
+  try {
+    queued = await enqueueJob(exam.id, false);
+  } catch (err) {
+    if (err instanceof QueueSendError) return res.status(502).json({ error: `${err.message}. The copies are saved; click Try again once this is fixed.` });
+    throw err;
+  }
   await audit(req.user!.id, 'GENERATION_STARTED', 'exam', exam.id, queued);
   res.status(202).json(queued);
 });
@@ -120,25 +138,51 @@ generationRouter.post('/:id/rerender', async (req, res) => {
   if (!exam) return res.status(404).json({ error: 'Exam not found' });
   const [{ n }] = await query('SELECT count(*)::int AS n FROM copies WHERE exam_id=$1', [exam.id]);
   if (!n) return res.status(409).json({ error: 'Nothing to re-render: generate copies first' });
-  const queued = await enqueueJob(exam.id, true);
+  let queued;
+  try {
+    queued = await enqueueJob(exam.id, true);
+  } catch (err) {
+    if (err instanceof QueueSendError) return res.status(502).json({ error: err.message });
+    throw err;
+  }
   await audit(req.user!.id, 'RERENDER_STARTED', 'exam', exam.id, queued);
   res.status(202).json(queued);
 });
+
+async function attempt<T>(label: string, warnings: string[], fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (err) {
+    logger.error({ err, label }, 'generation status check failed');
+    warnings.push(`Could not read ${label}: ${(err as Error).message}`);
+    return null;
+  }
+}
 
 generationRouter.get('/:id/generation', async (req, res) => {
   const exam = await loadExam(req.params.id);
   if (!exam) return res.status(404).json({ error: 'Exam not found' });
   const adapters = getAdapters();
+  const warnings: string[] = [];
   const [job] = await query(
-    'SELECT id, total, done, failed, status FROM generation_jobs WHERE exam_id=$1 ORDER BY started_at DESC LIMIT 1',
+    `SELECT id, total, done, failed, status, last_error, failed_messages, started_at
+     FROM generation_jobs WHERE exam_id=$1 ORDER BY started_at DESC LIMIT 1`,
     [exam.id],
   );
+  const queueDepth = await attempt('the queue size', warnings, () => adapters.queue.depth('generation'));
+  const dlqDepth = await attempt('the dead-letter queue', warnings, () => adapters.queue.depth('generation-dlq'));
+  const workers = await attempt('the worker count', warnings, () => adapters.fleet.status());
   res.json({
     examStatus: exam.status,
-    job: job ?? null,
-    queueDepth: await adapters.queue.depth('generation'),
-    deadLetterDepth: await adapters.queue.depth('generation-dlq'),
-    workers: await adapters.fleet.status(),
+    mode: config.appMode,
+    job: job ? {
+      id: job.id, total: job.total, done: job.done, failed: job.failed, status: job.status,
+      lastError: job.last_error, startedAt: new Date(job.started_at).toISOString(),
+    } : null,
+    queueDepth,
+    deadLetterDepth: Math.max(dlqDepth ?? 0, job?.failed_messages ?? 0),
+    workers: workers ?? { desired: 1, inService: 0 },
+    warnings,
   });
 });
 

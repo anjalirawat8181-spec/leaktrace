@@ -10,30 +10,46 @@ centreRouter.use(requireAuth, requireRole('SUPERINTENDENT'));
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const VISIBLE_STATUSES = ['SCHEDULED', 'RELEASED', 'CLOSED'];
+const KEEP_AFTER_CLOSE_MS = 24 * 3600_000;
 
 centreRouter.get('/exams', async (req, res) => {
   const at = now();
+  const centreId = req.user!.centreId;
+  if (!centreId) return res.json({ serverTime: at.toISOString(), exams: [] });
+
   const exams = await query(
-    'SELECT * FROM exams WHERE status = ANY($1) ORDER BY starts_at', [VISIBLE_STATUSES],
+    `SELECT e.* FROM exams e
+     WHERE e.status = ANY($1) AND EXISTS (SELECT 1 FROM copies c WHERE c.exam_id = e.id AND c.centre_id = $2)
+     ORDER BY e.starts_at`,
+    [VISIBLE_STATUSES, centreId],
   );
-  const rooms = await query('SELECT * FROM rooms WHERE centre_id=$1 ORDER BY name', [req.user!.centreId]);
-  res.json({
-    serverTime: at.toISOString(),
-    exams: exams.map((e) => {
-      const w = examWindow(e, at);
-      return {
-        id: e.id,
-        title: e.title,
-        subject: e.subject,
-        startsAt: new Date(e.starts_at).toISOString(),
-        status: e.status,
-        windowState: w.state,
-        opensAt: w.opensAt.toISOString(),
-        closesAt: w.closesAt.toISOString(),
-        rooms: rooms.map((r) => ({ id: r.id, name: r.name })),
-      };
-    }),
-  });
+  const rooms = await query(
+    `SELECT DISTINCT r.id, r.name, c.exam_id FROM copies c JOIN rooms r ON r.id = c.room_id
+     WHERE c.centre_id = $1 ORDER BY r.name`,
+    [centreId],
+  );
+
+  const visible = [];
+  for (const e of exams) {
+    const w = examWindow(e, at);
+    if (at.getTime() - w.closesAt.getTime() > KEEP_AFTER_CLOSE_MS) continue;
+    const closed = e.status === 'CLOSED' || w.state === 'CLOSED';
+    const open = !closed && w.state === 'OPEN' && e.status === 'RELEASED';
+    visible.push({
+      id: e.id,
+      title: e.title,
+      subject: e.subject,
+      startsAt: new Date(e.starts_at).toISOString(),
+      status: e.status,
+      windowState: w.state,
+      state: closed ? 'CLOSED' : open ? 'OPEN' : 'LOCKED',
+      releasePending: !closed && !open && w.state === 'OPEN',
+      opensAt: w.opensAt.toISOString(),
+      closesAt: w.closesAt.toISOString(),
+      rooms: rooms.filter((r) => r.exam_id === e.id).map((r) => ({ id: r.id, name: r.name })),
+    });
+  }
+  res.json({ serverTime: at.toISOString(), exams: visible });
 });
 
 type Reason = 'TOO_EARLY' | 'CLOSED' | 'WRONG_CENTRE' | 'OK';

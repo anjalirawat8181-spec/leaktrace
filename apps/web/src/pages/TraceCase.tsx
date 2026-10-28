@@ -170,7 +170,7 @@ export default function TraceCasePage({ user }: { user: User }) {
     return () => clearTimeout(t);
   }, [animating, lit, evidence.length]);
 
-  const back = <LinkButton to="/trace" variant="ghost" icon="arrowleft" className="-ml-3">Trace Lab</LinkButton>;
+  const back = <LinkButton to="/trace" variant="ghost" icon="arrowleft" className="-ml-3">All leak cases</LinkButton>;
 
   if (error) return <div><PageHeader back={back} title="Trace failed" /><ErrorState message={error} /></div>;
   if (stored.isError && !result) return <div><PageHeader back={back} title="Trace case" /><ErrorState message={(stored.error as Error).message} onRetry={() => stored.refetch()} /></div>;
@@ -197,8 +197,8 @@ export default function TraceCasePage({ user }: { user: User }) {
 
         {result.totalPoints !== undefined && (
           <Card>
-            <CardHeader title="Variation points">
-              <span className="data-num">{lit} / {evidence.length}</span> observed of <span className="data-num">{result.totalPoints}</span>. Amber agrees with the top copy, red disagrees.
+            <CardHeader title="Differences found">
+              <span className="data-num">{lit} / {evidence.length}</span> spots matched out of <span className="data-num">{result.totalPoints}</span> where copies can differ. Amber agrees with the best match, red disagrees.
             </CardHeader>
             <ul className="flex flex-wrap gap-1.5" aria-label="Variation point grid">
               {Array.from({ length: result.totalPoints }, (_, i) => {
@@ -222,7 +222,7 @@ export default function TraceCasePage({ user }: { user: User }) {
 
         <Card>
           <CardHeader title="Leaked text">
-            {result.case.evidenceKey ? 'Photo evidence attached and hash-verified. ' : ''}Hover or focus a highlighted phrase to see which variation it matched.
+            {result.case.evidenceKey ? 'Photo evidence attached and hash-verified. ' : ''}Hover over a highlighted phrase to see which difference it matched.
           </CardHeader>
           {evidence.length === 0 && done && <Notice className="mb-4" tone="info">No variation points were detected in this text.</Notice>}
           <HighlightedLeak text={result.case.leakText} evidence={evidence} visible={lit} />

@@ -190,19 +190,19 @@ async function main() {
 
     await page.goto(`${WEB}/exams/${examId}/generation`, { waitUntil: 'networkidle0' });
     await waitText(page, 'Workers online');
-    await clickText(page, 'Generate', 'button');
-    await waitText(page, 'DONE · 20 / 20 copies', 90_000);
+    await clickText(page, 'Generate copies', 'button');
+    await waitText(page, 'All 20 copies are ready', 90_000);
     await shot(page, '06-generation');
 
     await page.goto(`${WEB}/exams/${examId}/schedule`, { waitUntil: 'networkidle0' });
-    await clickText(page, 'Create schedules', 'button');
-    await waitText(page, 'leaktrace-release-');
+    await clickText(page, 'Schedule release', 'button');
+    await waitText(page, 'Papers unlock');
     await shot(page, '07-schedule');
     await logout(page);
 
     console.log('Superintendent flow…');
     await login(page, 'supt.c1@demo');
-    await waitText(page, 'Paper unlocks in');
+    await waitText(page, 'Locked until');
     await shot(page, '08-centre-portal-locked');
     await page.evaluate(async (id) => {
       await fetch(`/api/centre/exams/${id}/download`, {
@@ -210,12 +210,17 @@ async function main() {
       });
     }, examId);
 
-    await db.query("UPDATE exams SET starts_at = now() + interval '5 minutes' WHERE id = $1", [examId]);
+    const istIn = (minutes) => new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(new Date(Date.now() + minutes * 60_000)).replace(' ', 'T');
     const controllerCookie = await apiLogin('controller@demo');
     const rescheduled = await fetch(`${API}/api/exams/${examId}/schedule`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie: controllerCookie }, body: '{}',
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: controllerCookie },
+      body: JSON.stringify({ releaseAt: istIn(2), closeAt: istIn(60) }),
     });
-    if (!rescheduled.ok) throw new Error('reschedule failed');
+    if (!rescheduled.ok) throw new Error(`reschedule failed: ${await rescheduled.text()}`);
+    await db.query("UPDATE exams SET release_at = now() - interval '1 minute' WHERE id = $1", [examId]);
+    await db.query("UPDATE local_schedules SET fire_at = now() - interval '1 second' WHERE name LIKE 'leaktrace-release-%'");
     for (let i = 0; i < 60; i++) {
       const { rows } = await db.query('SELECT status FROM exams WHERE id = $1', [examId]);
       if (rows[0].status === 'RELEASED') break;
@@ -223,7 +228,7 @@ async function main() {
       await sleep(1000);
     }
     await page.reload({ waitUntil: 'networkidle0' });
-    await waitText(page, 'Paper available');
+    await waitText(page, 'Download now');
     await clickText(page, 'Download papers', 'button');
     await waitText(page, 'open PDF');
     await shot(page, '09-centre-portal-download');
@@ -245,7 +250,7 @@ async function main() {
     await page.waitForSelector('textarea');
     await setValue(page, 'input[placeholder^="e.g."]', 'Telegram screenshot, 18 Oct');
     await setValue(page, 'textarea', leak);
-    await clickText(page, 'Run trace', 'button');
+    await clickText(page, 'Find the copy', 'button');
     await waitText(page, 'LEAK TRACED', 60_000);
     await shot(page, '10-trace-verdict', true);
 

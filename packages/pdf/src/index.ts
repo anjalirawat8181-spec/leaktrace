@@ -50,6 +50,8 @@ export function renderCopyPdf(input: CopyPdfInput): Promise<Buffer> {
 
     const when = input.startsAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
     const decorate = () => {
+      const savedX = doc.x;
+      const savedY = doc.y;
       const { left, right } = doc.page.margins;
       const width = doc.page.width - left - right;
       const saved = doc.page.margins.bottom;
@@ -64,6 +66,9 @@ export function renderCopyPdf(input: CopyPdfInput): Promise<Buffer> {
         .text(input.visibleCode, left + width / 2, doc.page.height - 48, { width: width / 2, align: 'right', lineBreak: false });
       doc.page.margins.bottom = saved;
       doc.fillColor('#000');
+      doc.x = savedX;
+      doc.y = savedY;
+      doc.font('Regular').fontSize(11);
     };
 
     decorate();

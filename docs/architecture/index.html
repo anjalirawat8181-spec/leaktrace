@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}[hidden]{display:none!important}</style>
+<title>LeakTrace Architecture Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: header + flow toolbar, then a two-column workbench (scrollable diagram | detail panel), facts strip below. */
+:root{
+  --bg:#EEF1F6; --surface:#FFFFFF; --surface-2:#F6F8FB; --ink:#132033; --muted:#5B6677; --line:#C9D2DF; --accent:#2B58E6;
+  --vpc:#6B48D8; --vpc-fill:#F4F1FF; --pub-fill:#E9F7EC; --pub-line:#86CF97; --priv-fill:#E8F1FD; --priv-line:#8FB5EA;
+  --compute:#D46A0A; --storage:#2E8740; --db:#3B57D6; --integ:#C02E68; --mgmt:#9437BC; --sec:#C22F2F; --net:#6B48D8; --ext:#4A5466;
+  --dim:0.16;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif; --f-body:"IBM Plex Sans","Segoe UI",Arial,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C111B; --surface:#151C29; --surface-2:#1B2434; --ink:#E5EBF5; --muted:#97A3B6; --line:#2C374A; --accent:#7C9BFF;
+  --vpc:#9C85F5; --vpc-fill:#171A2E; --pub-fill:#122219; --pub-line:#2F6B40; --priv-fill:#121D2E; --priv-line:#2D4F7E;
+  --compute:#F2953F; --storage:#5CC071; --db:#7D93FF; --integ:#F06A9C; --mgmt:#C57BE8; --sec:#F06B6B; --net:#9C85F5; --ext:#8D97A8; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0C111B; --surface:#151C29; --surface-2:#1B2434; --ink:#E5EBF5; --muted:#97A3B6; --line:#2C374A; --accent:#7C9BFF;
+  --vpc:#9C85F5; --vpc-fill:#171A2E; --pub-fill:#122219; --pub-line:#2F6B40; --priv-fill:#121D2E; --priv-line:#2D4F7E;
+  --compute:#F2953F; --storage:#5CC071; --db:#7D93FF; --integ:#F06A9C; --mgmt:#C57BE8; --sec:#F06B6B; --net:#9C85F5; --ext:#8D97A8; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1500px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:70ch}
+.region-tag{font-family:var(--f-mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--surface)}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{font:600 13px var(--f-body);border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);padding:7px 12px;border-radius:8px;cursor:pointer}
+.tab .k{font-family:var(--f-mono);margin-right:6px;color:var(--muted)}
+.tab[aria-pressed="true"]{border-color:var(--fc,var(--accent));background:color-mix(in srgb,var(--fc,var(--accent)) 14%,var(--surface));}
+.tab[aria-pressed="true"] .k{color:var(--fc,var(--accent))}
+.sep{width:1px;height:28px;background:var(--line)}
+.btn{font:600 13px var(--f-body);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 11px;border-radius:8px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button:focus-visible,.node:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.toggle{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
+.spacer{flex:1}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:1100px){.bench{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
+.caption{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line);min-height:64px;background:var(--surface-2)}
+.caption .num{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 14px var(--f-mono);color:#fff;background:var(--fc,var(--accent))}
+.caption .ct{font-weight:600}
+.caption .cd{color:var(--muted);font-size:14px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+svg.dia{display:block;width:100%;min-width:980px;height:auto}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:12px;position:sticky;top:max(12px,env(safe-area-inset-top,0px))}
+@media (max-width:1100px){.panel{position:static}}
+.ph{display:flex;gap:12px;align-items:center}
+.ptile{width:46px;height:46px;border-radius:10px;display:grid;place-items:center;color:#fff;font:700 13px var(--f-mono);flex:none}
+.pt{font-family:var(--f-display);font-weight:700;font-size:20px;line-height:1.2}
+.pk{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.panel h3{font:600 12px var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 0}
+.panel p{margin:0}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:13.5px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-size:12.5px;word-break:break-word}
+.viva{border-left:4px solid var(--accent);background:var(--surface-2);padding:10px 12px;border-radius:0 8px 8px 0;font-size:14px}
+.links{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{font:500 12px var(--f-body);border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:999px;padding:4px 10px;cursor:pointer}
+.hint{font-size:13px;color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.card h2{font-family:var(--f-display);font-size:16px;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{font-family:var(--f-mono);font-size:12px;white-space:nowrap;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.sw{width:14px;height:14px;border-radius:4px;display:inline-block}
+/* svg */
+.c-region{fill:var(--surface-2);stroke:var(--ink);stroke-width:2}
+.c-vpc{fill:var(--vpc-fill);stroke:var(--vpc);stroke-width:2}
+.c-az{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:6 5}
+.c-pub{fill:var(--pub-fill);stroke:var(--pub-line);stroke-width:1.3}
+.c-priv{fill:var(--priv-fill);stroke:var(--priv-line);stroke-width:1.3}
+.c-sg{fill:none;stroke:var(--sec);stroke-width:1.6;stroke-dasharray:6 4}
+.lbl{font:600 13px var(--f-body);fill:var(--muted)}
+.lbl-strong{font:700 13px var(--f-body);fill:var(--ink)}
+.lbl-sg{font:500 12px var(--f-body);fill:var(--sec)}
+.lbl-vpc{font:700 13px var(--f-body);fill:var(--vpc)}
+.node{cursor:pointer}
+.node .card-r{fill:var(--surface);stroke-width:2}
+.node:hover .card-r{filter:drop-shadow(0 3px 6px rgba(0,0,0,.18))}
+.node.sel .card-r{stroke-width:3.5}
+.node .t{font:700 15px var(--f-body);fill:var(--ink)}
+.node .s{font:400 12.5px var(--f-body);fill:var(--muted)}
+.node .code{font:700 11px var(--f-mono);fill:#fff}
+.node.planned .card-r{stroke-dasharray:6 4;fill:var(--surface-2)}
+.note .card-r{fill:var(--surface);stroke:var(--priv-line)}
+.edge path.ln{fill:none;stroke-width:2.6;stroke-linejoin:round}
+.edge path.hit{fill:none;stroke:transparent;stroke-width:14;cursor:help}
+.edge.dash path.ln{stroke-dasharray:8 6}
+.edge text{font:600 12px var(--f-body);paint-order:stroke;stroke:var(--surface-2);stroke-width:4px;stroke-linejoin:round}
+.edge .badge circle{stroke:var(--surface);stroke-width:2}
+.edge .badge text{font:700 11px var(--f-mono);fill:#fff;stroke:none}
+.hide-labels .edge text.elab{display:none}
+.hide-sg .sgrp{display:none}
+.focus .node:not(.on), .focus .edge:not(.on), .focus .note:not(.on){opacity:var(--dim)}
+.edge.on path.ln{stroke-width:4}
+.edge.flow path.ln{stroke-dasharray:10 8;animation:march 0.9s linear infinite}
+@keyframes march{to{stroke-dashoffset:-18}}
+@media (prefers-reduced-motion:reduce){.edge.flow path.ln{animation:none}}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12.5px;padding:6px 9px;border-radius:6px;max-width:280px;z-index:20}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>LeakTrace Architecture Explorer</h1>
+      <p class="sub">Click any service to see what it does, how it is set up, and how to explain it in the viva. Pick a flow to play it step by step across the AWS services.</p>
+    </div>
+    <span class="region-tag">ap-south-1 · Mumbai · 10.0.0.0/16</span>
+  </header>
+
+  <div class="toolbar" role="toolbar" aria-label="Flows and view options">
+    <div class="tabs" id="tabs"></div>
+    <span class="sep" aria-hidden="true"></span>
+    <button class="btn" id="prev" aria-label="Previous step">&#8592; Prev</button>
+    <button class="btn primary" id="play">&#9654; Play</button>
+    <button class="btn" id="next" aria-label="Next step">Next &#8594;</button>
+    <span class="spacer"></span>
+    <label class="toggle"><input type="checkbox" id="tLabels" checked> Arrow labels</label>
+    <label class="toggle"><input type="checkbox" id="tSg" checked> Security groups</label>
+    <button class="btn" id="reset">Show everything</button>
+  </div>
+
+  <div class="bench">
+    <section class="stage" aria-label="Architecture diagram">
+      <div class="caption" id="caption"><span class="num" id="capNum">i</span><div><div class="ct" id="capT">The whole system</div><div class="cd" id="capD">Every service LeakTrace uses, inside the Mumbai region. Arrows 1 to 12 are the calls between them.</div></div></div>
+      <div class="scroll"><svg class="dia" id="dia" viewBox="0 0 1600 1040" role="img" aria-label="LeakTrace AWS architecture diagram"></svg></div>
+    </section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <div class="facts">
+    <div class="card"><h2>Network at a glance</h2>
+      <table><tbody>
+        <tr><td>10.0.0.0/16</td><td>VPC leaktrace-vpc</td></tr>
+        <tr><td>10.0.1.0/24</td><td>Public subnet, ap-south-1a: API server</td></tr>
+        <tr><td>10.0.2.0/24</td><td>Public subnet, ap-south-1b: worker</td></tr>
+        <tr><td>10.0.11.0/24</td><td>Private subnet, ap-south-1a: RDS</td></tr>
+        <tr><td>10.0.12.0/24</td><td>Private subnet, ap-south-1b: DB subnet group</td></tr>
+        <tr><td>0.0.0.0/0</td><td>Public route to the Internet Gateway; no NAT gateway</td></tr>
+      </tbody></table></div>
+    <div class="card"><h2>Security group rules</h2>
+      <table><tbody>
+        <tr><td>api-sg</td><td>Inbound HTTP 80 from the allowed IP</td></tr>
+        <tr><td>worker-sg</td><td>No inbound rules; outbound only</td></tr>
+        <tr><td>db-sg</td><td>Inbound 5432 only from api-sg and worker-sg</td></tr>
+        <tr><td>port 22</td><td>Closed everywhere; Session Manager instead</td></tr>
+      </tbody></table></div>
+    <div class="card"><h2>Numbers to remember</h2>
+      <table><tbody>
+        <tr><td>20</td><td>copies per exam, one PDF per room</td></tr>
+        <tr><td>3</td><td>tries before a job moves to the dead-letter queue</td></tr>
+        <tr><td>120 s</td><td>life of a download link</td></tr>
+        <tr><td>0 → 1</td><td>workers; scales back to 0 after 5 empty minutes</td></tr>
+        <tr><td>16</td><td>settings in Parameter Store /leaktrace/prod</td></tr>
+      </tbody></table></div>
+    <div class="card"><h2>Legend</h2>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--compute)"></i>Compute</span>
+        <span><i class="sw" style="background:var(--storage)"></i>Storage</span>
+        <span><i class="sw" style="background:var(--db)"></i>Database</span>
+        <span><i class="sw" style="background:var(--integ)"></i>Messaging</span>
+        <span><i class="sw" style="background:var(--mgmt)"></i>Management</span>
+        <span><i class="sw" style="background:var(--sec)"></i>Security</span>
+        <span><i class="sw" style="background:var(--net)"></i>Networking</span>
+        <span><i class="sw" style="background:var(--pub-fill);border:1px solid var(--pub-line)"></i>Public subnet</span>
+        <span><i class="sw" style="background:var(--priv-fill);border:1px solid var(--priv-line)"></i>Private subnet</span>
+        <span><i class="sw" style="border:2px dashed var(--sec)"></i>Security group</span>
+      </div>
+      <p class="hint" style="margin:10px 0 0">Solid arrows are requests. Dashed arrows are delivery or start-up steps. Hover an arrow to read what travels on it.</p>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const NS="http://www.w3.org/2000/svg";
+const V=n=>`var(--${n})`;
+const containers=[
+ {c:"c-region",x:220,y:40,w:1360,h:960,label:["AWS Cloud · Region ap-south-1 (Mumbai)",236,62,"lbl-strong"]},
+ {c:"c-vpc",x:270,y:90,w:760,h:880,label:["VPC leaktrace-vpc · 10.0.0.0/16",312,112,"lbl-vpc"],node:"vpc"},
+ {c:"c-az",x:290,y:128,w:350,h:822,label:["Availability Zone ap-south-1a",300,146,"lbl"]},
+ {c:"c-az",x:660,y:128,w:350,h:822,label:["Availability Zone ap-south-1b",670,146,"lbl"]},
+ {c:"c-pub",x:305,y:160,w:320,h:335,label:["Public subnet · 10.0.1.0/24",317,178,"lbl-strong"],node:"pubA"},
+ {c:"c-pub",x:675,y:160,w:320,h:335,label:["Public subnet · 10.0.2.0/24",687,178,"lbl-strong"],node:"pubB"},
+ {c:"c-priv",x:305,y:545,w:320,h:390,label:["Private subnet · 10.0.11.0/24",317,563,"lbl-strong"],node:"privA"},
+ {c:"c-priv",x:675,y:545,w:320,h:390,label:["Private subnet · 10.0.12.0/24",687,563,"lbl-strong"],node:"privB"},
+ {c:"c-sg sgrp",x:320,y:192,w:290,h:285,label:["Security group api-sg · HTTP 80 in",330,208,"lbl-sg sgrp"],node:"sgApi"},
+ {c:"c-sg sgrp",x:690,y:192,w:290,h:285,label:["Security group worker-sg · no inbound",700,208,"lbl-sg sgrp"],node:"sgWorker"},
+ {c:"c-sg sgrp",x:320,y:578,w:290,h:250,label:["Security group db-sg · 5432 from api + worker",330,594,"lbl-sg sgrp"],node:"sgDb"},
+];
+const N={
+ users:{x:20,y:120,w:180,h:150,code:"USR",col:"ext",t:"Users",s:["Controller","Superintendent (SI)","Auditor"],kind:"Outside AWS · web browser",
+  what:"The three roles open the same address in a browser. The app shows each role only its own screens.",
+  cfg:[["Address","http://ec2-13-233-233-79.ap-south-1.compute.amazonaws.com"],["Roles","Controller · Superintendent · Auditor"],["Login","bcrypt password, JWT in an httpOnly cookie"]],
+  why:"One web app for everyone keeps the project small. Roles are checked on every API call, not only in the screens.",
+  viva:"Each user logs in to the same site. The API checks the role on every request, so a superintendent can only reach their own centre's papers."},
+ cf:{x:20,y:300,w:180,h:90,code:"CF",col:"ext",planned:true,t:"CloudFront",s:["Planned, not active"],kind:"Content delivery · planned",
+  what:"Was meant to give one HTTPS address for the website and the API. AWS blocked it until the account is verified.",
+  cfg:[["Status","Blocked: account verification pending"],["Stand-in","nginx on the API server"],["Function","leaktrace-spa-rewrite (created, published)"]],
+  why:"CloudFront adds HTTPS, caching and one origin for the site and /api. nginx gives the same single address for now.",
+  viva:"CloudFront is in the design but AWS has not verified the account yet, so nginx on EC2 serves the site and passes /api to Node."},
+ laptop:{x:20,y:420,w:180,h:110,code:"DEV",col:"ext",t:"Developer laptop",s:["VS Code + Claude Code","npm run package"],kind:"Outside AWS · build machine",
+  what:"The code is written and built here. The build makes api.tar.gz, worker.tar.gz and web.tar.gz, which are uploaded to the S3 deploy bucket.",
+  cfg:[["Build","npm run package"],["Output","api / worker / web .tar.gz"],["Switch","APP_MODE=aws swaps the adapters"]],
+  why:"Adapters let the same business code run on a laptop or on AWS. Only the plugs (storage, queue, email, timers, settings) change.",
+  viva:"I built locally, uploaded the packages to S3, and the servers download them when they boot. The code never goes to RDS; RDS only holds data."},
+ email:{x:20,y:560,w:180,h:84,code:"EM",col:"ext",t:"Email inboxes",s:["SNS subscribers"],kind:"Outside AWS",
+  what:"Release notices, leak alerts and ops alerts arrive here, two people per topic.",
+  cfg:[["Topics","leak-alerts · ops-alerts · release-notices"]],
+  why:"Email needs no extra app and SNS handles retries.",
+  viva:"SNS pushes the alert to every confirmed email address on that topic."},
+ igw:{x:240,y:270,w:60,h:60,code:"IGW",col:"net",icon:true,t:"Internet Gateway",kind:"Networking",
+  what:"The VPC's door to the internet. Public subnets route 0.0.0.0/0 here, so the API server can be reached and servers can call AWS services.",
+  cfg:[["Attached to","leaktrace-vpc"],["Used by","public route table"]],
+  why:"Free, and enough for public subnets. No NAT gateway is needed because the servers sit in public subnets.",
+  viva:"Traffic from the browser enters through the Internet Gateway, then the security group decides if it may reach the server."},
+ ec2:{x:335,y:236,w:260,h:225,code:"EC2",col:"compute",t:"EC2 · leaktrace-api",s:["t3.micro · Amazon Linux 2023","nginx :80 → Node API :3000","exam-events consumer","role: leaktrace-api-role"],kind:"Compute",
+  what:"Runs the website and the API. nginx serves the React files and passes /api to the Node.js API, which talks to every other service.",
+  cfg:[["Instance","t3.micro, public IP"],["Web","nginx :80, /var/www/leaktrace"],["API","Node.js 20 :3000, systemd leaktrace-api"],["Start-up","migrations run before each start"],["Role","leaktrace-api-role"]],
+  why:"The API is always on, so a small normal server is the simplest and cheapest fit.",
+  viva:"One EC2 instance runs nginx and the Node API. It reads its settings from Parameter Store using its IAM role, so no passwords are in the code."},
+ asg:{x:705,y:236,w:260,h:225,code:"ASG",col:"compute",t:"Auto Scaling · worker",s:["min 0 · max 1","renders PDFs (pdfkit)","heartbeat every 15 s","role: leaktrace-worker-role"],kind:"Compute",
+  what:"Starts a worker server only when there are jobs in the queue. The worker makes each copy's PDF, merges one PDF per room and saves it to S3.",
+  cfg:[["Capacity","0 to 1 instance"],["Launch template","user-data downloads worker.tar.gz"],["Scale out","alarm queue-has-work"],["Scale in","alarm queue-empty, 5 minutes"],["Role","leaktrace-worker-role"]],
+  why:"PDF work is slow and comes in bursts. Scaling to zero means it costs nothing when idle and never slows the website.",
+  viva:"The worker is not always running. A CloudWatch alarm on the queue starts it, and it shuts down after five empty minutes."},
+ rds:{x:335,y:620,w:260,h:185,code:"RDS",col:"db",t:"RDS · PostgreSQL 16",s:["leaktrace-db · db.t4g.micro","users, exams, copies, trace","audit_events (append-only)"],kind:"Database",
+  what:"Stores everything the app knows: users, centres and rooms, exams, the 20 copies and their fingerprint vectors, downloads, trace cases and the audit log.",
+  cfg:[["Engine","PostgreSQL 16"],["Placement","private subnet, single-AZ"],["Access","db-sg: 5432 from api-sg and worker-sg"],["App user","leaktrace_app"],["Security","TLS in transit, encrypted at rest"]],
+  why:"The data is relational and the app was already written for Postgres. A managed database gives backups without running a server.",
+  viva:"The database sits in a private subnet with no internet route. Only the API and worker security groups may connect on port 5432."},
+ dbgroup:{x:690,y:590,w:230,h:105,note:true,t:"DB subnet group",s:["RDS needs subnets in two AZs.","The database runs in 1a; 1b is","kept ready for a standby."],kind:"Database networking",
+  what:"RDS requires a subnet group covering two Availability Zones, even for a single-AZ database.",
+  cfg:[["Subnets","10.0.11.0/24 (1a), 10.0.12.0/24 (1b)"]],
+  why:"It lets the database move to Multi-AZ later without changing the network.",
+  viva:"The second private subnet exists because RDS needs two AZs in its subnet group. It would hold the standby if we turn on Multi-AZ."},
+ routes:{x:690,y:710,w:230,h:140,note:true,t:"Route tables",s:["Public: 0.0.0.0/0 → IGW","Private: local only","Both: S3 → gateway endpoint","No NAT gateway"],kind:"Networking",
+  what:"Public subnets send internet traffic to the Internet Gateway. Private subnets have only the local route plus the S3 endpoint route.",
+  cfg:[["Public RT","10.0.0.0/16 local · 0.0.0.0/0 → IGW · S3 prefix list → VPCE"],["Private RT","10.0.0.0/16 local · S3 prefix list → VPCE"]],
+  why:"A NAT gateway costs about USD 33 a month. Keeping servers in public subnets and using a free S3 endpoint avoids it.",
+  viva:"What makes a subnet public is only its route to the Internet Gateway. The private subnet has no such route, so the database cannot reach or be reached from the internet."},
+ vpce:{x:1000,y:250,w:60,h:60,code:"VPCE",col:"net",icon:true,t:"S3 gateway endpoint",kind:"Networking",
+  what:"A private path from the VPC to S3. Code downloads and PDF uploads go through it instead of the internet.",
+  cfg:[["Type","Gateway endpoint (free)"],["Route tables","public and private"]],
+  why:"Free, faster and keeps S3 traffic inside AWS.",
+  viva:"The worker saves PDFs to S3 through the gateway endpoint, so that traffic never crosses the public internet."},
+ s3:{x:1090,y:90,w:230,h:210,code:"S3",col:"storage",t:"Amazon S3",s:["deploy · code packages","web · React build","data · PDFs + evidence","lifecycle 7 days · links 120 s"],kind:"Storage",
+  what:"Three buckets. Deploy holds the code packages, web holds the website build, and data holds the generated PDFs and leak evidence.",
+  cfg:[["leaktrace-deploy-ccl2026","api / worker / web .tar.gz"],["leaktrace-web-ccl2026","React build"],["leaktrace-data-ccl2026","PDFs, evidence; delete after 7 days"],["Downloads","pre-signed GET, 120 s"],["Uploads","pre-signed PUT, 300 s"]],
+  why:"The worker and the API are different machines, so files must live in shared storage. Pre-signed links let the browser fetch big PDFs directly.",
+  viva:"Deploy holds the code, web holds the site, data holds what the app creates. Downloads use 2-minute pre-signed links, so a link cannot be passed around."},
+ sqs:{x:1090,y:330,w:230,h:200,code:"SQS",col:"integ",t:"Amazon SQS",s:["generation · 1 job per room","generation-dlq · after 3 tries","exam-events · RELEASE / CLOSE"],kind:"Messaging",
+  what:"Job trays between services. The API drops jobs on the generation queue; the scheduler drops release and close events on exam-events.",
+  cfg:[["leaktrace-generation","long poll 20 s"],["leaktrace-generation-dlq","max receive count 3"],["exam-events","read by the API"]],
+  why:"A queue keeps jobs safe until a worker finishes them, retries failures, and keeps slow work away from the website.",
+  viva:"If the worker crashes, the message reappears and is retried. After three failures it moves to the dead-letter queue so it cannot block other jobs."},
+ eb:{x:1090,y:560,w:230,h:120,code:"EB",col:"integ",t:"EventBridge Scheduler",s:["group leaktrace","one-time at() schedules","India time"],kind:"Messaging · timers",
+  what:"Fires once at the release time and once at the close time, sending a message to the exam-events queue.",
+  cfg:[["Group","leaktrace"],["Schedule","at(YYYY-MM-DDThh:mm:ss), Asia/Kolkata"],["After firing","deletes itself"],["Role","leaktrace-scheduler-role"]],
+  why:"Exact, serverless timers that still fire if the API restarts.",
+  viva:"When the controller schedules the release, the API creates two one-time schedules. At release time the scheduler drops a message on exam-events and the API marks the exam RELEASED."},
+ sns:{x:1345,y:90,w:220,h:170,code:"SNS",col:"integ",t:"Amazon SNS",s:["leak-alerts","ops-alerts","release-notices"],kind:"Messaging · notifications",
+  what:"Sends email for leaks, system problems and paper releases.",
+  cfg:[["Topics","3"],["Subscribers","2 emails per topic"],["Publisher","API (and CloudWatch for ops-alerts)"]],
+  why:"Push notifications without writing email code; add or remove people in one place.",
+  viva:"The API publishes once and SNS delivers to every confirmed subscriber."},
+ cw:{x:1345,y:285,w:220,h:190,code:"CW",col:"mgmt",t:"Amazon CloudWatch",s:["queue-has-work → 1 worker","queue-empty 5 min → 0","dlq-not-empty → ops email"],kind:"Management · monitoring",
+  what:"Watches the queue metrics. Its alarms start and stop the worker and warn the team when jobs fail.",
+  cfg:[["queue-has-work","messages ≥ 1 → scale out"],["queue-empty","0 for 5 min → scale in"],["dlq-not-empty","→ leaktrace-ops-alerts"]],
+  why:"This is what makes the worker scale by itself.",
+  viva:"CloudWatch reads the queue depth. One alarm adds a worker, another removes it, and a third emails ops if anything lands in the dead-letter queue."},
+ ssm:{x:1345,y:500,w:220,h:130,code:"SSM",col:"mgmt",t:"Systems Manager",s:["Parameter Store /leaktrace/prod","Session Manager terminal"],kind:"Management",
+  what:"Parameter Store holds 16 settings; passwords and keys are encrypted. Session Manager opens a server terminal from the console.",
+  cfg:[["Parameters","16 under /leaktrace/prod"],["Secrets","SecureString (encrypted)"],["Access","no SSH keys, port 22 closed"]],
+  why:"Nothing secret lives in the code or on disk, and no SSH port is open.",
+  viva:"At start-up the app reads its settings from Parameter Store using its IAM role. I manage servers through Session Manager, so port 22 stays closed."},
+ iam:{x:1345,y:655,w:220,h:150,code:"IAM",col:"sec",t:"AWS IAM",s:["leaktrace-api-role","leaktrace-worker-role","leaktrace-scheduler-role"],kind:"Security",
+  what:"ID badges for the servers and the scheduler. Each role allows only what that part needs.",
+  cfg:[["api-role","SSM, S3, SQS, SNS, Scheduler"],["worker-role","SQS receive, S3 write, SSM read"],["scheduler-role","send to exam-events"]],
+  why:"Least privilege, and no access keys anywhere in the code.",
+  viva:"The servers get temporary credentials from their IAM role automatically. If one part were compromised it could only do its own job."},
+};
+const COL={ext:"ext",net:"net",compute:"compute",db:"db",storage:"storage",integ:"integ",mgmt:"mgmt",sec:"sec"};
+const E=[
+ {id:"e1",n:1,col:"accent",from:"users",to:"ec2",pts:[[200,250],[222,250],[222,300],[335,300]],lab:["HTTP :80",262,262,"middle"],tip:"Browser to nginx through the Internet Gateway, then nginx passes /api to Node."},
+ {id:"e2",n:2,col:"db",from:"ec2",to:"rds",both:true,pts:[[380,461],[380,620]],lab:["SQL :5432 · TLS",396,545,"start"],tip:"API reads and writes the database over TLS on port 5432."},
+ {id:"e3",n:3,col:"integ",from:"ec2",to:"sqs",pts:[[560,461],[560,507],[1090,507]],lab:["SendMessage · 1 job per room",820,500,"middle"],tip:"API puts one generation job per room on the queue."},
+ {id:"e9b",n:9,col:"integ",from:"sqs",to:"ec2",pts:[[1090,527],[655,527],[655,400],[595,400]],lab:["exam-events → API marks RELEASED / CLOSED",840,543,"middle"],badge:[1068,527],tip:"API consumer reads release and close events and updates the exam status."},
+ {id:"e4",n:4,col:"mgmt",from:"cw",to:"asg",pts:[[1345,315],[965,315]],lab:["alarm → scale worker 0 ↔ 1",1205,323,"middle"],badge:[1332,315],tip:"CloudWatch alarms change the Auto Scaling group's desired capacity."},
+ {id:"e5",n:5,col:"compute",from:"sqs",to:"asg",pts:[[1090,420],[965,420]],lab:["ReceiveMessage",1005,412,"middle"],badge:[1072,420],tip:"Worker long-polls the generation queue (20 s)."},
+ {id:"e6",n:6,col:"storage",from:"asg",to:"s3",pts:[[965,280],[1090,280]],badge:[982,280],tip:"Worker uploads room PDFs to the data bucket through the S3 gateway endpoint."},
+ {id:"e7",n:7,col:"db",from:"asg",to:"rds",pts:[[955,461],[955,890],[470,890],[470,805]],lab:["progress + heartbeat (SQL)",700,882,"middle"],tip:"Worker updates job progress and writes a heartbeat every 15 s."},
+ {id:"e8",n:8,col:"integ",from:"ec2",to:"eb",pts:[[595,430],[645,430],[645,958],[1075,958],[1075,620],[1090,620]],lab:["CreateSchedule · release / close",860,951,"middle"],tip:"API creates two one-time schedules in group leaktrace."},
+ {id:"e9a",n:9,col:"integ",from:"eb",to:"sqs",pts:[[1205,560],[1205,530]],lab:["fires at release time",1213,550,"start"],tip:"At the set time the scheduler sends a message to exam-events."},
+ {id:"e10",n:10,col:"sec",from:"ec2",to:"sns",pts:[[570,236],[570,72],[1455,72],[1455,90]],lab:["Publish alerts / release notices",1010,66,"middle"],tip:"API publishes leak alerts and release notices."},
+ {id:"e11",n:11,col:"storage",dash:true,from:"s3",to:"users",pts:[[1150,90],[1150,24],[110,24],[110,120]],lab:["SI downloads straight from S3 · pre-signed URL (120 s)",640,18,"middle"],tip:"The browser fetches the PDF directly from S3 using a short-lived signed link."},
+ {id:"e12",n:12,col:"sec",from:"cw",to:"sns",pts:[[1455,285],[1455,260]],lab:["DLQ alarm",1463,277,"start"],tip:"Alarm dlq-not-empty publishes to ops-alerts."},
+ {id:"eMail",col:"sec",dash:true,from:"sns",to:"email",pts:[[1565,175],[1590,175],[1590,1018],[110,1018],[110,644]],lab:["email delivery",1582,900,"end"],tip:"SNS sends email to confirmed subscribers."},
+ {id:"eBoot",col:"ext",dash:true,from:"s3",to:"vpce",pts:[[1090,120],[1030,120],[1030,250]],lab:["boot: servers download code",1024,140,"end"],tip:"New servers download their .tar.gz package from the deploy bucket at boot."},
+ {id:"eCfg",col:"mgmt",dash:true,from:"ssm",to:"vpc",pts:[[1345,565],[1332,565],[1332,700],[1034,700]],lab:["settings read at start-up",1180,696,"middle"],tip:"API and worker load 16 settings from Parameter Store when they start."},
+ {id:"eMet",col:"mgmt",from:"sqs",to:"cw",pts:[[1320,450],[1345,450]],tip:"Queue depth metrics feed the alarms."},
+];
+const FLOWS=[
+ {k:"A",name:"Generate 20 copies",col:"compute",steps:[
+  {e:["e1"],n:["users","igw","ec2"],t:"Controller clicks Generate",d:"The request enters through the Internet Gateway, passes api-sg on port 80 and reaches nginx, which hands /api to Node."},
+  {e:["e2"],n:["ec2","rds"],t:"API stores 20 copies",d:"Each copy gets a seat and a fingerprint vector, saved in RDS over TLS."},
+  {e:["e3"],n:["ec2","sqs"],t:"One job per room goes on the queue",d:"The API sends a message per room to leaktrace-generation and returns at once, so the page stays fast."},
+  {e:["eMet","e4"],n:["sqs","cw","asg"],t:"CloudWatch starts a worker",d:"Alarm queue-has-work sees messages waiting and sets the Auto Scaling group to 1 instance."},
+  {e:["eBoot","e5"],n:["s3","vpce","asg","sqs"],t:"Worker boots and takes a job",d:"The new server downloads worker.tar.gz from the deploy bucket, then long-polls the queue."},
+  {e:["e6"],n:["asg","vpce","s3"],t:"PDFs saved to S3",d:"Each copy is rendered, merged into one PDF per room and uploaded to the data bucket through the gateway endpoint."},
+  {e:["e7"],n:["asg","rds"],t:"Progress recorded; exam READY",d:"The worker updates progress and heartbeats in RDS. When every room is done the exam becomes READY."},
+  {e:["e4"],n:["cw","asg"],t:"Worker scales back to zero",d:"After five minutes with an empty queue, alarm queue-empty removes the worker, so idle time costs nothing."}]},
+ {k:"B",name:"Release and download",col:"storage",steps:[
+  {e:["e8"],n:["ec2","eb"],t:"Controller schedules the window",d:"The API creates two one-time schedules: Release at and Close at, in India time."},
+  {e:["e9a"],n:["eb","sqs"],t:"Scheduler fires at release time",d:"EventBridge sends a RELEASE message to the exam-events queue."},
+  {e:["e9b","e2"],n:["sqs","ec2","rds"],t:"API marks the exam RELEASED",d:"The API's consumer reads the message and updates the exam status in RDS."},
+  {e:["e10","eMail"],n:["ec2","sns","email"],t:"Release notice email",d:"The API publishes to leaktrace-release-notices and SNS emails the subscribers."},
+  {e:["e1","e2"],n:["users","igw","ec2","rds"],t:"SI clicks Download papers",d:"The API checks the SI's centre and the window, logs the download, and signs a 120-second link."},
+  {e:["e11"],n:["s3","users"],t:"PDF comes straight from S3",d:"The browser downloads the room PDF directly from the data bucket. The big file never passes through the API."}]},
+ {k:"C",name:"Trace a leak",col:"sec",steps:[
+  {e:["e1"],n:["users","igw","ec2"],t:"Leaked text pasted in Trace Lab",d:"The controller pastes a few lines from the leaked paper, typos included."},
+  {e:["e2"],n:["ec2","rds"],t:"Every copy is scored",d:"The API reads which wording was used at each variation point and compares it with all 20 stored fingerprints."},
+  {e:["e2"],n:["ec2","rds"],t:"Copy, room and seat named",d:"With strong evidence the result is LEAK TRACED, showing the seat, the room and who downloaded that room's papers."},
+  {e:["e10","eMail"],n:["ec2","sns","email"],t:"Leak alert email",d:"The API publishes to leaktrace-leak-alerts."},
+  {e:["e1","e2"],n:["users","ec2","rds"],t:"Auditor reviews the trail",d:"The auditor reads the append-only audit log and the trace case. Nothing can be edited."}]},
+ {k:"D",name:"Failure handling",col:"mgmt",steps:[
+  {e:["e5"],n:["sqs","asg"],t:"A job fails",d:"If the worker crashes or errors, it does not delete the message. It reappears after the visibility timeout and is retried."},
+  {e:[],n:["sqs"],t:"Third failure: dead-letter queue",d:"After 3 receives SQS moves the message to leaktrace-generation-dlq, so it cannot block other jobs."},
+  {e:["eMet","e12"],n:["sqs","cw","sns"],t:"Alarm dlq-not-empty",d:"CloudWatch sees a message in the DLQ and publishes to leaktrace-ops-alerts."},
+  {e:["eMail"],n:["sns","email"],t:"Ops team is emailed",d:"An operator inspects the failed job and uses Re-render once it is fixed."}]},
+];
+const EXTRA={vpc:{code:"VPC",col:"net",t:"VPC leaktrace-vpc",kind:"Networking",what:"Our private network in AWS: 10.0.0.0/16 split into two public and two private subnets across two Availability Zones.",cfg:[["CIDR","10.0.0.0/16"],["AZs","ap-south-1a, ap-south-1b"],["Subnets","2 public, 2 private"],["Internet","Internet Gateway, no NAT"]],why:"Separates what may face the internet (servers) from what must not (the database).",viva:"The VPC is a fenced compound. Servers live in the public rooms, the database lives in the private rooms, and security groups are the guards at each door."},
+ pubA:{code:"PUB",col:"storage",t:"Public subnet 10.0.1.0/24",kind:"Networking · ap-south-1a",what:"Holds the API server. Its route table sends 0.0.0.0/0 to the Internet Gateway and servers get a public IP.",cfg:[["Route","0.0.0.0/0 → IGW"],["Auto public IP","on"]],why:"The API must be reachable from browsers.",viva:"A subnet is public because its route table points to the Internet Gateway."},
+ pubB:{code:"PUB",col:"storage",t:"Public subnet 10.0.2.0/24",kind:"Networking · ap-south-1b",what:"Where the worker launches. A public IP lets it reach SQS and Parameter Store without a NAT gateway; worker-sg allows no inbound traffic.",cfg:[["Route","0.0.0.0/0 → IGW"],["Inbound","none (worker-sg)"]],why:"Saves the cost of a NAT gateway while still blocking all inbound traffic.",viva:"The worker is in a public subnet only for outbound calls; nothing can connect to it."},
+ privA:{code:"PRV",col:"db",t:"Private subnet 10.0.11.0/24",kind:"Networking · ap-south-1a",what:"Holds the RDS database. No route to the internet at all.",cfg:[["Route","local + S3 endpoint only"]],why:"The database must never be reachable from the internet.",viva:"Private means no Internet Gateway route, so even a mistake in a rule cannot expose the database to the internet."},
+ privB:{code:"PRV",col:"db",t:"Private subnet 10.0.12.0/24",kind:"Networking · ap-south-1b",what:"The second private subnet in the DB subnet group.",cfg:[["Route","local + S3 endpoint only"]],why:"RDS requires two AZs in its subnet group.",viva:"It keeps the option of a Multi-AZ standby open."},
+ sgApi:{code:"SG",col:"sec",t:"Security group api-sg",kind:"Security · firewall",what:"Firewall on the API server.",cfg:[["Inbound","HTTP 80 from the allowed IP"],["Outbound","all"]],why:"Only web traffic is let in; port 22 stays closed.",viva:"A security group is a stateful firewall attached to the instance."},
+ sgWorker:{code:"SG",col:"sec",t:"Security group worker-sg",kind:"Security · firewall",what:"Firewall on the worker.",cfg:[["Inbound","none"],["Outbound","all"]],why:"The worker only makes outbound calls, so nothing needs to reach it.",viva:"No inbound rules means no one can connect to the worker."},
+ sgDb:{code:"SG",col:"sec",t:"Security group db-sg",kind:"Security · firewall",what:"Firewall on the database.",cfg:[["Inbound","5432 from api-sg and worker-sg"]],why:"Rules reference security groups, not IPs, so new workers are allowed automatically.",viva:"Only machines wearing api-sg or worker-sg can reach Postgres."}};
+
+const svg=document.getElementById("dia");
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);(parent||svg).appendChild(e);return e;}
+function tx(str,x,y,cls,parent,anchor){const t=el("text",{x,y,class:cls,"text-anchor":anchor||"start"},parent);t.textContent=str;return t;}
+const gC=el("g",{}),gE=el("g",{}),gN=el("g",{});
+containers.forEach(c=>{const g=el("g",{class:(c.c.includes("sgrp")?"sgrp ":"")+(c.node?"cont":"")},gC);
+  el("rect",{x:c.x,y:c.y,width:c.w,height:c.h,rx:c.c.includes("region")?16:10,class:c.c},g);
+  const lb=tx(c.label[0],c.label[1],c.label[2],c.label[3],g);
+  if(c.node){lb.style.cursor="pointer";lb.addEventListener("click",()=>select(c.node));}
+});
+el("rect",{x:272,y:94,width:34,height:22,rx:5,fill:V("vpc")},gC);tx("VPC",289,109,"",gC,"middle").setAttribute("style","font:700 10px var(--f-mono);fill:#fff");
+const edgeEls={};
+E.forEach(e=>{const g=el("g",{class:"edge"+(e.dash?" dash":""),"data-id":e.id},gE);
+  const d="M"+e.pts.map(p=>p.join(",")).join(" L");
+  const col=e.col==="accent"?V("accent"):V(e.col);
+  const mk="m-"+e.id;
+  const defs=el("defs",{},g);
+  [["e",mk],["s",mk+"s"]].forEach(([k,id])=>{const m=el("marker",{id,viewBox:"0 0 10 10",refX:8,refY:5,markerWidth:5,markerHeight:5,orient:"auto-start-reverse"},defs);el("path",{d:"M0,0 L10,5 L0,10 z",style:`fill:${col}`},m);});
+  const ln=el("path",{d,class:"ln","marker-end":`url(#${mk})`,style:`stroke:${col}`},g);
+  if(e.both)ln.setAttribute("marker-start",`url(#${mk}s)`);
+  const hit=el("path",{d,class:"hit"},g);
+  if(e.lab){const t=tx(e.lab[0],e.lab[1],e.lab[2],"elab",g,e.lab[3]);t.setAttribute("style",`fill:${col}`);}
+  if(e.n){const [x0,y0]=e.pts[0],[x1,y1]=e.pts[1];const bx=e.badge?e.badge[0]:(x0+x1)/2,by=e.badge?e.badge[1]:(y0+y1)/2;const b=el("g",{class:"badge"},g);el("circle",{cx:bx,cy:by,r:11,style:`fill:${col}`},b);tx(String(e.n),bx,by+4,"",b,"middle");}
+  hit.addEventListener("mousemove",ev=>showTip(ev,(e.n?e.n+" · ":"")+e.tip));hit.addEventListener("mouseleave",hideTip);
+  edgeEls[e.id]=g;
+});
+const nodeEls={};
+Object.entries(N).forEach(([id,n])=>{
+  const g=el("g",{class:"node"+(n.planned?" planned":"")+(n.note?" note":""),tabindex:0,role:"button","aria-label":n.t,"data-id":id},gN);
+  const col=n.note?V("priv-line"):V(COL[n.col]);
+  if(n.icon){el("rect",{x:n.x,y:n.y,width:n.w,height:n.h,rx:12,class:"card-r",style:`stroke:${col}`},g);
+    el("rect",{x:n.x+8,y:n.y+8,width:n.w-16,height:n.h-16,rx:8,style:`fill:${col}`},g);tx(n.code,n.x+n.w/2,n.y+n.h/2+4,"code",g,"middle");
+    const words=n.t.split(" ");const lines=n.t.length>12?[words.slice(0,-1).join(" "),words.slice(-1)[0]]:[n.t];
+    lines.forEach((l,i)=>{const t=tx(l,n.x+n.w/2,n.y+n.h+14+i*13,"s",g,"middle");t.setAttribute("style",`font-weight:700;fill:${col}`);});
+  } else {
+    el("rect",{x:n.x,y:n.y,width:n.w,height:n.h,rx:10,class:"card-r",style:`stroke:${col}`},g);
+    let ty=n.y+26;
+    if(!n.note){el("rect",{x:n.x+10,y:n.y+10,width:36,height:36,rx:7,style:`fill:${col}`},g);tx(n.code,n.x+28,n.y+32,"code",g,"middle");
+      tx(n.t,n.x+54,n.y+27,"t",g);if(n.s){tx(n.s[0],n.x+54,n.y+44,"s",g);}ty=n.y+70;
+      (n.s||[]).slice(1).forEach((l,i)=>tx("· "+l,n.x+12,ty+i*19,"s",g));}
+    else{tx(n.t,n.x+12,ty,"t",g);(n.s||[]).forEach((l,i)=>tx(l,n.x+12,ty+20+i*16,"s",g));}
+  }
+  g.addEventListener("click",()=>select(id));g.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();select(id);}});
+  nodeEls[id]=g;
+});
+const tip=document.getElementById("tip");
+function showTip(ev,s){tip.textContent=s;tip.hidden=false;tip.style.left=Math.min(ev.clientX+14,innerWidth-300)+"px";tip.style.top=(ev.clientY+14)+"px";}
+function hideTip(){tip.hidden=true;}
+
+const panel=document.getElementById("panel");
+function info(id){return N[id]||EXTRA[id];}
+function connected(id){return E.filter(e=>e.from===id||e.to===id);}
+function renderPanel(id){
+  const n=info(id);
+  if(!n){panel.innerHTML=`<div class="pk">How to use</div><div class="pt">Pick a service</div><p>Click any box or label in the diagram, such as <b>EC2</b>, <b>Amazon SQS</b> or a subnet, to see what it does and how to explain it.</p><p class="hint">Or choose a flow above and press Play to watch a request travel through the system.</p><h3>Jump to</h3><div class="links">${["ec2","asg","rds","s3","sqs","eb","sns","cw","ssm","iam","vpc","routes"].map(k=>`<button class="chipbtn" data-go="${k}">${info(k).t}</button>`).join("")}</div>`;bindGo();return;}
+  const col=V(COL[n.col]||"priv-line");
+  const conn=connected(id).filter(e=>e.n);
+  panel.innerHTML=`<div class="ph"><span class="ptile" style="background:${col}">${n.code||"·"}</span><div><div class="pk">${n.kind}</div><div class="pt">${n.t}</div></div></div>
+  <h3>What it does</h3><p>${n.what}</p>
+  <h3>How LeakTrace sets it up</h3><dl class="kv">${(n.cfg||[]).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
+  <h3>Why this choice</h3><p>${n.why}</p>
+  <h3>Say this in the viva</h3><div class="viva">${n.viva}</div>
+  ${conn.length?`<h3>Connected by</h3><div class="links">${conn.map(e=>`<button class="chipbtn" data-go="${e.from===id?e.to:e.from}">${e.n} · ${info(e.from===id?e.to:e.from).t}</button>`).join("")}</div>`:""}
+  <button class="btn" id="clearSel">Back to overview</button>`;
+  bindGo();document.getElementById("clearSel").onclick=()=>{clearAll();};
+}
+function bindGo(){panel.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>select(b.dataset.go));}
+function highlight(nodes,edges,flowEdges){
+  svg.classList.add("focus");
+  Object.entries(nodeEls).forEach(([k,g])=>g.classList.toggle("on",nodes.includes(k)));
+  Object.entries(edgeEls).forEach(([k,g])=>{g.classList.toggle("on",edges.includes(k));g.classList.toggle("flow",(flowEdges||[]).includes(k));});
+}
+function clearHL(){svg.classList.remove("focus");Object.values(nodeEls).forEach(g=>g.classList.remove("on","sel"));Object.values(edgeEls).forEach(g=>g.classList.remove("on","flow"));}
+function select(id){
+  stopPlay();
+  Object.values(nodeEls).forEach(g=>g.classList.remove("sel"));
+  const conn=connected(id);
+  const ns=[id,...conn.map(e=>e.from===id?e.to:e.from)];
+  highlight(ns,conn.map(e=>e.id));
+  if(nodeEls[id])nodeEls[id].classList.add("sel");
+  renderPanel(id);
+  setCaption("i",info(id).t,"Highlighted: this part and everything it talks to.",null);
+}
+const capNum=document.getElementById("capNum"),capT=document.getElementById("capT"),capD=document.getElementById("capD"),capBox=document.getElementById("caption");
+function setCaption(num,t,d,col){capNum.textContent=num;capT.textContent=t;capD.textContent=d;capBox.style.setProperty("--fc",col?V(col):V("accent"));}
+// flows
+let fi=-1,si=-1,timer=null;
+const tabs=document.getElementById("tabs");
+FLOWS.forEach((f,i)=>{const b=document.createElement("button");b.className="tab";b.setAttribute("aria-pressed","false");b.style.setProperty("--fc",V(f.col));b.innerHTML=`<span class="k">${f.k}</span>${f.name}`;b.onclick=()=>{stopPlay();startFlow(i);};tabs.appendChild(b);});
+function startFlow(i){fi=i;si=0;[...tabs.children].forEach((b,j)=>b.setAttribute("aria-pressed",j===i?"true":"false"));showStep();}
+function showStep(){const f=FLOWS[fi],s=f.steps[si];
+  highlight(s.n,s.e,s.e);
+  setCaption(`${si+1}`,`${f.k}${si+1} · ${s.t}`,s.d,f.col);
+  capNum.textContent=si+1;
+  const focus=s.n[s.n.length-1];renderPanel(focus);
+  Object.values(nodeEls).forEach(g=>g.classList.remove("sel"));if(nodeEls[focus])nodeEls[focus].classList.add("sel");
+  document.getElementById("prev").disabled=si===0;document.getElementById("next").disabled=si===f.steps.length-1;
+}
+function step(d){if(fi<0){startFlow(0);return;}const f=FLOWS[fi];si=Math.max(0,Math.min(f.steps.length-1,si+d));showStep();}
+const playBtn=document.getElementById("play");
+function stopPlay(){if(timer){clearInterval(timer);timer=null;}playBtn.innerHTML="&#9654; Play";}
+playBtn.onclick=()=>{if(timer){stopPlay();return;}if(fi<0)startFlow(0);else if(si>=FLOWS[fi].steps.length-1){si=0;showStep();}
+  playBtn.innerHTML="&#10074;&#10074; Pause";timer=setInterval(()=>{if(si>=FLOWS[fi].steps.length-1){stopPlay();return;}si++;showStep();},3200);};
+document.getElementById("prev").onclick=()=>{stopPlay();step(-1);};
+document.getElementById("next").onclick=()=>{stopPlay();step(1);};
+function clearAll(){stopPlay();fi=-1;si=-1;[...tabs.children].forEach(b=>b.setAttribute("aria-pressed","false"));clearHL();renderPanel(null);
+  setCaption("i","The whole system","Every service LeakTrace uses, inside the Mumbai region. Arrows 1 to 12 are the calls between them.",null);
+  document.getElementById("prev").disabled=false;document.getElementById("next").disabled=false;}
+document.getElementById("reset").onclick=clearAll;
+document.getElementById("tLabels").onchange=e=>svg.classList.toggle("hide-labels",!e.target.checked);
+document.getElementById("tSg").onchange=e=>svg.classList.toggle("hide-sg",!e.target.checked);
+document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest("input"))return;if(e.key==="ArrowRight"){stopPlay();step(1);}if(e.key==="ArrowLeft"){stopPlay();step(-1);}if(e.key==="Escape")clearAll();});
+renderPanel(null);
+</script>
+
+</body>
+</html>

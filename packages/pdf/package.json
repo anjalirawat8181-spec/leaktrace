@@ -9,7 +9,8 @@
     "fonts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.mjs"
   },
   "dependencies": {
     "@leaktrace/fingerprint": "*",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/pdfkit": "^0.13.4",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.11"
   }
 }

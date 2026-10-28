@@ -9,12 +9,11 @@ import {
   ConflictException, CreateScheduleCommand, CreateScheduleGroupCommand, DeleteScheduleCommand,
   ResourceNotFoundException, SchedulerClient, UpdateScheduleCommand,
 } from '@aws-sdk/client-scheduler';
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { AutoScalingClient, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { sdkStreamMixin } from '@smithy/util-stream';
 import { Readable } from 'node:stream';
 import {
-  AsgWorkerFleet, EventBridgeScheduler, S3Storage, SnsNotifier, SqsQueue, SsmConfig, bootstrapAwsAdapters,
+  DbWorkerFleet, EventBridgeScheduler, S3Storage, SnsNotifier, SqsQueue, SsmConfig, bootstrapAwsAdapters,
 } from '../src';
 
 const ssm = mockClient(SSMClient);
@@ -22,10 +21,9 @@ const sqs = mockClient(SQSClient);
 const sns = mockClient(SNSClient);
 const scheduler = mockClient(SchedulerClient);
 const s3 = mockClient(S3Client);
-const asg = mockClient(AutoScalingClient);
 
 afterEach(() => {
-  for (const m of [ssm, sqs, sns, scheduler, s3, asg]) m.reset();
+  for (const m of [ssm, sqs, sns, scheduler, s3]) m.reset();
 });
 
 const PARAMS: Record<string, string> = {
@@ -69,7 +67,40 @@ describe('bootstrapAwsAdapters', () => {
 
   it('fails clearly when a required parameter is missing', async () => {
     ssm.on(GetParametersByPathCommand).resolves({ Parameters: [{ Name: '/leaktrace/prod/DB_HOST', Value: 'x' }] });
-    await expect(bootstrapAwsAdapters()).rejects.toThrow(/Missing SSM parameter DB_NAME/);
+    await expect(bootstrapAwsAdapters()).rejects.toThrow(/Missing SSM parameters: DB_NAME, DB_USER/);
+  });
+
+  it('lets a worker start with only the settings it uses, and blocks the API-only adapters', async () => {
+    const needed = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DATA_BUCKET', 'GENERATION_QUEUE_URL'];
+    ssm.on(GetParametersByPathCommand).resolves({
+      Parameters: needed.map((k) => ({ Name: `/leaktrace/prod/${k}`, Value: PARAMS[k] })),
+    });
+    const runtime = await bootstrapAwsAdapters('worker');
+    expect(await runtime.adapters.queue.depth('generation-dlq')).toBe(0);
+    expect(() => runtime.adapters.scheduler.cancel('x')).toThrow(/not available in this process/);
+    await runtime.pool.end();
+  });
+
+  it('only the API insists on the scheduler and queue settings', async () => {
+    const needed = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DATA_BUCKET', 'GENERATION_QUEUE_URL'];
+    ssm.on(GetParametersByPathCommand).resolves({
+      Parameters: needed.map((k) => ({ Name: `/leaktrace/prod/${k}`, Value: PARAMS[k] })),
+    });
+    await expect(bootstrapAwsAdapters('api')).rejects.toThrow(/EXAM_EVENTS_QUEUE_URL, EXAM_EVENTS_QUEUE_ARN, SCHEDULER_ROLE_ARN/);
+  });
+
+  it('uses an optional dead-letter queue URL when one is configured', async () => {
+    ssm.on(GetParametersByPathCommand).resolves({
+      Parameters: [
+        ...Object.entries(PARAMS).map(([k, v]) => ({ Name: `/leaktrace/prod/${k}`, Value: v })),
+        { Name: '/leaktrace/prod/GENERATION_DLQ_URL', Value: 'https://sqs.ap-south-1.amazonaws.com/1/dlq' },
+      ],
+    });
+    sqs.on(GetQueueAttributesCommand).resolves({ Attributes: { ApproximateNumberOfMessages: '2' } });
+    const runtime = await bootstrapAwsAdapters('worker');
+    expect(await runtime.adapters.queue.depth('generation-dlq')).toBe(2);
+    expect(sqs.commandCalls(GetQueueAttributesCommand)[0].args[0].input.QueueUrl).toBe('https://sqs.ap-south-1.amazonaws.com/1/dlq');
+    await runtime.pool.end();
   });
 });
 
@@ -138,18 +169,19 @@ describe('S3Storage', () => {
     expect((await storage.get('papers/a.pdf')).toString()).toBe('%PDF');
     expect(await storage.exists('papers/a.pdf')).toBe(true);
     expect(await storage.exists('missing')).toBe(false);
+    await storage.delete('papers/a.pdf');
+    expect(s3.commandCalls(DeleteObjectCommand)[0].args[0].input).toEqual({ Bucket: 'leaktrace-data-ccl2026', Key: 'papers/a.pdf' });
     const url = await storage.signedDownloadUrl('papers/a.pdf', 120);
     expect(url).toMatch(/^https:\/\/leaktrace-data-ccl2026\.s3\.ap-south-1\.amazonaws\.com\/papers\/a\.pdf\?.*X-Amz-Expires=120/);
   });
 });
 
-describe('AsgWorkerFleet', () => {
-  it('counts in-service instances against desired capacity', async () => {
-    asg.on(DescribeAutoScalingGroupsCommand).resolves({ AutoScalingGroups: [{
-      AutoScalingGroupName: 'w', DesiredCapacity: 1, MinSize: 0, MaxSize: 1, DefaultCooldown: 0,
-      AvailabilityZones: [], HealthCheckType: 'EC2', CreatedTime: new Date(),
-      Instances: [{ InstanceId: 'i-1', LifecycleState: 'InService', AvailabilityZone: 'a', HealthStatus: 'Healthy', ProtectedFromScaleIn: false }],
-    }] });
-    expect(await new AsgWorkerFleet('ap-south-1', 'w').status()).toEqual({ desired: 1, inService: 1 });
+describe('DbWorkerFleet', () => {
+  it('counts heartbeats from the last 60 seconds, with no AWS calls', async () => {
+    const calls: any[] = [];
+    const pool: any = { query: async (sql: string, params: unknown[]) => { calls.push({ sql, params }); return { rows: [{ n: 2 }] }; } };
+    expect(await new DbWorkerFleet(pool, 1).status()).toEqual({ desired: 1, inService: 2 });
+    expect(calls[0].sql).toMatch(/worker_heartbeats/);
+    expect(calls[0].params).toEqual([60]);
   });
 });

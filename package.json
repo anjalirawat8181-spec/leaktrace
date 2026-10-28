@@ -12,10 +12,11 @@
     "seed": "npm run build:packages && tsx --env-file=.env db/seed/seed.ts",
     "dev": "npm run db:up && npm run migrate && npm run build:packages && concurrently -n api,worker,web \"npm run dev --workspace @leaktrace/api\" \"npm run dev --workspace @leaktrace/worker\" \"npm run dev --workspace @leaktrace/web\"",
     "db:test": "node db/setup-test-db.mjs",
-    "test": "npm run test --workspace @leaktrace/fingerprint && npm run test --workspace @leaktrace/adapters && npm run test --workspace @leaktrace/api && npm run test --workspace @leaktrace/worker",
+    "test": "npm run test --workspace @leaktrace/fingerprint && npm run test --workspace @leaktrace/pdf && npm run test --workspace @leaktrace/adapters && npm run test --workspace @leaktrace/web && npm run test --workspace @leaktrace/api && npm run test --workspace @leaktrace/worker",
     "fp:demo": "npm run fp:demo --workspace @leaktrace/fingerprint --",
     "screenshots": "node scripts/screenshots.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "e2e": "node scripts/e2e-local.mjs"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

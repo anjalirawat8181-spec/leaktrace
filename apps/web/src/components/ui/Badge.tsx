@@ -36,7 +36,21 @@ const STATUS: Record<string, { tone: Tone; icon: IconName }> = {
   OPEN: { tone: 'info', icon: 'eye' },
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: 'Draft',
+  GENERATING: 'Generating',
+  READY: 'Ready',
+  SCHEDULED: 'Scheduled',
+  RELEASED: 'Released',
+  CLOSED: 'Closed',
+  IDENTIFIED: 'Copy found',
+  POSSIBLE: 'Several possible',
+  INSUFFICIENT: 'Not enough text',
+  INCONCLUSIVE: 'No single copy',
+  OPEN: 'Open',
+};
+
 export function StatusBadge({ status }: { status: string }) {
   const s = STATUS[status] ?? { tone: 'neutral' as Tone, icon: undefined };
-  return <Badge tone={s.tone} icon={s.icon}>{status}</Badge>;
+  return <Badge tone={s.tone} icon={s.icon}>{STATUS_LABEL[status] ?? status}</Badge>;
 }

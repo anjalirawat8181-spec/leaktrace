@@ -36,5 +36,9 @@ export function formatDhms(ms: number): string {
 }
 
 export function formatDateTime(value: string | Date): string {
-  return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return `${new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST`;
+}
+
+export function formatIst(value: string | Date): string {
+  return `${new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST`;
 }
