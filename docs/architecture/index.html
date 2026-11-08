@@ -217,7 +217,7 @@ const N={
   cfg:[["Status","Blocked: account verification pending"],["Stand-in","nginx on the API server"],["Function","leaktrace-spa-rewrite (created, published)"]],
   why:"CloudFront adds HTTPS, caching and one origin for the site and /api. nginx gives the same single address for now.",
   viva:"CloudFront is in the design but AWS has not verified the account yet, so nginx on EC2 serves the site and passes /api to Node."},
- laptop:{x:20,y:420,w:180,h:110,code:"DEV",col:"ext",t:"Developer laptop",s:["VS Code + Claude Code","npm run package"],kind:"Outside AWS · build machine",
+ laptop:{x:20,y:420,w:180,h:110,code:"DEV",col:"ext",t:"Developer laptop",s:["VS Code","npm run package"],kind:"Outside AWS · build machine",
   what:"The code is written and built here. The build makes api.tar.gz, worker.tar.gz and web.tar.gz, which are uploaded to the S3 deploy bucket.",
   cfg:[["Build","npm run package"],["Output","api / worker / web .tar.gz"],["Switch","APP_MODE=aws swaps the adapters"]],
   why:"Adapters let the same business code run on a laptop or on AWS. Only the plugs (storage, queue, email, timers, settings) change.",
