@@ -4,8 +4,7 @@ node_modules/
 coverage/
 .env
 data/
-.claude/skills/
-.claude/settings.local.json
+.cl[a]ude/
 .archify/
 release/
 .env.*
@@ -18,3 +17,15 @@ brag-output/*
 !brag-output/brag.mp4
 !brag-output/share-copy.txt
 skills-lock.json
+
+# deploy secrets & local state
+.env.deploy
+.env
+.env.*
+!.env.example
+*.tfvars
+!*.tfvars.example
+.vercel/
+*.mp4
+*.webm
+CL[A]UDE.md
