@@ -80,7 +80,7 @@ function serviceEnv(env, webOrigin) {
     APP_MODE: 'cloud',
     WORKER_IN_PROCESS: 'true',
     DEMO_MODE: 'true',
-    TRUST_PROXY: 'true',
+    TRUST_PROXY: process.env.TRUST_PROXY_HOPS ?? '4',
     NODE_VERSION: '22',
     DATABASE_URL: env.NEON_DATABASE_URL,
     DATABASE_DIRECT_URL: env.NEON_DIRECT_URL,

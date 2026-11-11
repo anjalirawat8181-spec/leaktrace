@@ -170,4 +170,19 @@ describe('public demo mode', async () => {
     for (let i = 0; i < 8; i++) codes.push((await agent.post(`/api/exams/${draft.id}/generate`)).status);
     expect(codes).toContain(429);
   });
+
+  it('still caps expensive actions when every request claims a different address', async () => {
+    process.env.DEMO_MODE = 'true';
+    process.env.TRUST_PROXY = '1';
+    const behind = createApp();
+    const agent = request.agent(behind);
+    await agent.post('/api/auth/demo-login').set('X-Forwarded-For', '198.51.100.250').send({ role: 'controller' });
+    const [draft] = await query('SELECT id FROM exams LIMIT 1');
+    const codes: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      codes.push((await agent.post(`/api/exams/${draft.id}/generate`).set('X-Forwarded-For', `198.51.100.${i}`)).status);
+    }
+    expect(codes).toContain(429);
+    delete process.env.TRUST_PROXY;
+  });
 });

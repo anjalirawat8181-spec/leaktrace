@@ -34,7 +34,7 @@ Names only. Values live in `.env.deploy` (gitignored) and in the Render dashboar
 | `DEMO_RESET_TOKEN` | api, GitHub | bearer token for `POST /api/admin/reset-demo` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | api | R2 storage |
 | `WEB_ORIGIN` | api | public web address |
-| `TRUST_PROXY` | api | `true`, because the API sits behind Vercel and Render proxies |
+| `TRUST_PROXY` | api | `4`: the number of proxy hops between the visitor and the API on this stack (measured: Vercel, then Cloudflare and Render's own proxies). A bare `true` would let anyone spoof their IP and bypass the rate limits |
 | `MAX_COPIES_PER_EXAM` | api | 20 |
 | `IDLE_AFTER_SEC` | api | seconds without a visitor before the queue and scheduler stop polling the database (default 600) |
 | `DB_POOL_MAX` | api | connection pool size (default 5) |

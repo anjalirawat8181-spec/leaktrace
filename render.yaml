@@ -17,7 +17,7 @@ services:
       - key: DEMO_MODE
         value: "true"
       - key: TRUST_PROXY
-        value: "true"
+        value: "4"
       - key: NODE_VERSION
         value: "22"
       - key: MAX_COPIES_PER_EXAM
