@@ -58,8 +58,8 @@ Not needed any more: the API role no longer needs `autoscaling:DescribeAutoScali
 
 1. Open `http://<server address>/` (hard refresh). The sign-in page loads. `http://<server address>/api/health` shows `{"status":"ok"}`.
 2. Sign in as `controller@demo`. Exams shows cards with "Step 2 of 5: Generate" and a Delete button. Open the demo exam: a 5-step bar and one green button, "Generate copies".
-3. Click Generate copies (this opens the Generate page), then click Generate copies there. The page says "Waiting for a worker to start" and, after you clicked, "No worker running yet. One starts automatically within 1–4 minutes after you click Generate."
-4. Wait 1–4 minutes. "Workers online" becomes 1 / 1, "Copies done" climbs to 20 / 20 and the exam becomes Ready. If a red "Last error from the worker" box appears, read it: it is the real error.
+3. Click Generate copies (this opens the Generate page), then click Generate copies there. The page says "Waiting for a worker to start" and, after you clicked, "No worker running yet. One starts automatically within about 3 to 5 minutes after you click Generate."
+4. Wait about 3 to 5 minutes (measured on a cold group: about 4). "Workers online" becomes 1 / 1, "Copies done" climbs to 20 / 20 and the exam becomes Ready. If a red "Last error from the worker" box appears, read it: it is the real error.
 5. On the worker (Session Manager): `sudo journalctl -u leaktrace-worker -n 60 --no-pager` shows `MESSAGE_RECEIVED`, `ROOM_RENDERED`, `S3_UPLOAD_DONE`, `ROOM_SAVED`. In S3, `leaktrace-data-ccl2026/papers/<exam id>/` holds 4 PDFs.
 6. Schedule release: pick "Release at" about 3 minutes from now and "Close at" 30 minutes later (India time). Wrong times (past, or close before release) give a plain message. After saving, EventBridge Scheduler > group `leaktrace` shows 2 schedules.
 7. Sign in as `supt.c1@demo` in another browser window. The big status says "Locked until …". After the release time (within about a minute) it changes to "Download now"; click Download papers and open a PDF.
@@ -73,7 +73,7 @@ Not needed any more: the API role no longer needs `autoscaling:DescribeAutoScali
 - The worker used to be counted by asking the Auto Scaling service, which needs extra permission and showed 0. Now every worker writes a heartbeat row to the database every 15 seconds and the page counts the rows from the last 60 seconds. No AWS permission needed.
 - Errors are no longer hidden. The worker saves the real error text in the database and the Generation page shows it. If putting the job on the queue fails, or creating the schedule fails, you see that message and nothing is left half-done (before, an exam could say "Scheduled" with no real schedule).
 - The worker now only needs the settings it uses, and writes a clear log line for every step (message received, room rendered, file uploaded, error with its full message).
-- The laptop hint ("npm run dev…") now shows only on a laptop. On AWS it says a worker starts by itself in 1–4 minutes, and only after you clicked Generate.
+- The laptop hint ("npm run dev…") now shows only on a laptop. On AWS it says a worker starts by itself in about 3 to 5 minutes, and only after you clicked Generate.
 
 **Deployment.** The port comes from `PORT` (3000) and nginx owns port 80, so nothing has to be edited by hand on the server. `redeploy-api.sh` does the whole update safely, with a backup and automatic rollback. One more fix: behind nginx every visitor would have looked like the same address, so "5 sign-ins per minute" would have applied to the whole class together; the API now reads the real visitor address from nginx.
 

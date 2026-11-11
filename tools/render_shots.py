@@ -23,7 +23,7 @@ if not hasattr(ImageDraw.ImageDraw, "textsize"):
     ImageDraw.ImageDraw.textsize = _textsize
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "report-shots"
+OUT = ROOT / "docs" / "report-shots"
 BASE = "a4fb32d"
 WIDTH = 1200
 MAX_CHARS = 110
