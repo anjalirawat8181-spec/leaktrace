@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: leaktrace-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: master
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    buildCommand: npm ci --include=dev && npm run build:packages
+    startCommand: DATABASE_URL="$DATABASE_DIRECT_URL" npx tsx apps/api/src/migrate.ts && npx tsx apps/api/src/server.ts
+    envVars:
+      - key: APP_MODE
+        value: cloud
+      - key: WORKER_IN_PROCESS
+        value: "true"
+      - key: DEMO_MODE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: NODE_VERSION
+        value: "22"
+      - key: MAX_COPIES_PER_EXAM
+        value: "20"
+      - key: WEB_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FINGERPRINT_KEY
+        sync: false
+      - key: DEMO_RESET_TOKEN
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
