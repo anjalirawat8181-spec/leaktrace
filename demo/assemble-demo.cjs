@@ -15,13 +15,33 @@ const ff = (args) => execFileSync('ffmpeg', ['-y', '-v', 'error', ...args], { st
 const duration = (file) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim());
 const norm = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0x070b14,fps=30,format=yuv420p';
 
+const captionFixes = JSON.parse(process.env.CAPTION_FIXES ?? '[]');
+
+function captionFixFilter(clip, total) {
+  const own = meta.chapters.filter((c) => c.clip === clip.name);
+  const parts = [];
+  captionFixes.forEach((fix, k) => {
+    own.forEach((c, i) => {
+      if (!c.title.includes(fix.match)) return;
+      const to = i + 1 < own.length ? own[i + 1].t : total;
+      const file = path.join(WORK, `fix-${clip.name}-${k}-${i}.txt`);
+      fs.writeFileSync(file, fix.text);
+      const textFile = file.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '$1\\:');
+      const on = `enable='between(t,${c.t},${to})'`;
+      parts.push(`drawbox=x=0:y=ih-62:w=iw:h=62:color=black@1:t=fill:${on}`);
+      parts.push(`drawtext=fontfile='${FONT}':textfile='${textFile}':fontcolor=white:fontsize=22:x=(w-text_w)/2:y=h-44:${on}`);
+    });
+  });
+  return parts.length ? `,${parts.join(',')}` : '';
+}
+
 function normalizeClip(clip) {
   const src = path.join(OUT, clip.file);
   const total = duration(src);
   const marks = meta.marks.filter((m) => m.clip === clip.name && m.to > m.from).sort((a, b) => a.from - b.from);
   const out = path.join(WORK, `${clip.name}.mp4`);
   if (!marks.length) {
-    ff(['-i', src, '-vf', norm, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
+    ff(['-i', src, '-vf', `${norm}${captionFixFilter(clip, total)}`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
     return { out, marks: [], total };
   }
   const parts = [];

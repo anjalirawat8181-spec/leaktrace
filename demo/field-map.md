@@ -43,8 +43,8 @@ Set `TAIL_ONLY=1` to re-record only the last scenes (Find a leak, auditor, end c
 | Step 8 | `/` superintendent (own context) | "Locked until…", reload until the button enables | text "Locked until", button "Download papers" inside the exam card |
 | Step 9 | `/` superintendent | request links, open the PDF | link "open PDF (link works for 2 minutes)"; the PDF is shown in a local viewer so the signed link never appears |
 | Step 10 | `/trace` | paste six lines from the PDF with one typo | `select`, field "Case title", field "Leaked text (paste a few lines)", button "Find the copy"; verdict text "LEAK TRACED" |
-| Step 11 | Alerts | the leak alert | link "Alerts" |
-| Step 12 | Audit log (auditor context) | scroll the log, blocked attempts in red | link "Audit log" |
+| Step 11 | Alerts | on AWS the alert goes out by email through SNS, so the in-app outbox is empty; the page is shown for completeness | link "Alerts" |
+| Step 12 | Audit log (auditor context) | scroll the log: every sign-in, release and download is recorded | link "Audit log" |
 | End card | none | 4 s card with credit, stack, "Ran on AWS (ap-south-1)", repository | `setContent` |
 
 ## Timing
