@@ -56,6 +56,8 @@ To trace, we read the leaked text, find which filling appears at every blank we 
 
 ### AWS reference deployment (ap-south-1)
 
+The deployment as it was built in `ap-south-1`; it can be redeployed from the Terraform, and the live demo does not depend on it.
+
 - A `t3.micro` API server runs nginx and Express.
 - **Auto-scaling workers from zero.** Clicking Generate puts one message per room on **SQS**. A **CloudWatch** alarm on queue depth sets an **Auto Scaling** group from 0 to 1 `t3.micro` worker, which renders the PDFs and uploads them to **S3**. Five minutes of an empty queue scales it back to 0. The group is capped at 1.
 - **Release windows with EventBridge Scheduler.** Each exam gets two one-time schedules in India time that drop a message on an events queue; the API consumes it and marks the exam released or closed.
@@ -195,7 +197,7 @@ Screenshots, with suggested captions (all in `docs/screenshots/live/` unless not
 2. We ran a project on AWS, then moved it to a free stack in a day. The reason it was easy fits in one sentence.
 3. The most useful bug we found this month was in our own estimate: the worker took four minutes, not one.
 4. A leaked paper photo says nothing about where it came from. Unless every copy is worded differently.
-5. Our AWS bill was about ₹66 a day for a demo nobody was using. So we rebuilt the hosting for ₹0.
+5. Keeping our AWS deployment up cost about ₹66 a day for a demo nobody was using. So we rebuilt the hosting for ₹0.
 
 ### Post 1: technical deep dive
 
@@ -219,7 +221,7 @@ We built LeakTrace together over about three and a half weeks: a system that mak
 
 First we ran it on AWS in Mumbai: an API server, Postgres on RDS, files on S3, and workers that scale from zero when a queue fills up. Clicking Generate really did start a server. We recorded the demo on it, wrote Terraform for it, and checked that Terraform against the live account without applying anything.
 
-Then we looked at the bill. About ₹66 a day, to sit there. So we moved the public demo to Vercel, Render, Neon and Cloudflare R2, all free.
+Then we looked at the running cost. About ₹66 a day, just to sit there. So we moved the public demo to Vercel, Render, Neon and Cloudflare R2, all free.
 
 It took a day, because the app never talks to S3 or SQS directly. It talks to seven small interfaces. Our local mode already kept the queue and release timers in Postgres, and R2 speaks the S3 API. The new mode touched 14 files, about 410 lines, a third of them tests.
 
