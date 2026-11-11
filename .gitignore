@@ -30,3 +30,6 @@ skills-lock.json
 *.webm
 CL[A]UDE.md
 PLAN.local.md
+.claude/
+CLAUDE.md
+PLAN.local.md
