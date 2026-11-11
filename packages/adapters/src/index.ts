@@ -47,3 +47,7 @@ export * from './aws/notifier';
 export * from './aws/queue';
 export * from './aws/scheduler';
 export * from './aws/storage';
+export * from './cloud/activity';
+export * from './cloud/bootstrap';
+export * from './cloud/fleet';
+export * from './cloud/queue';

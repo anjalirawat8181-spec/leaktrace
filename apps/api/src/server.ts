@@ -1,9 +1,24 @@
-import { LocalScheduler, bootstrapAwsAdapters, type Adapters } from '@leaktrace/adapters';
+import path from 'node:path';
+import { LocalScheduler, bootstrapAwsAdapters, bootstrapCloudAdapters, type Adapters, type CloudRuntime } from '@leaktrace/adapters';
+import { setActivityGate } from './activity';
 import { getAdapters, setAdapters } from './adapters';
 import { createApp, logger } from './app';
 import { startExamEventConsumer } from './events';
 import { checkRequiredConfig, config } from './config';
 import { setPool } from './db';
+
+async function startInProcessWorker(runtime: CloudRuntime) {
+  const entry = path.resolve(__dirname, '../../worker/src/loop');
+  const { startWorkerLoop } = await import(entry);
+  startWorkerLoop({
+    pool: runtime.pool,
+    adapters: runtime.adapters,
+    heartbeat: false,
+    onState: (running: boolean) => runtime.fleet.setRunning(running),
+    log: (o: object) => logger.info(o),
+    logError: (o: object) => logger.error(o),
+  });
+}
 
 async function main() {
   let adapters: Adapters;
@@ -22,6 +37,17 @@ async function main() {
     adapters = runtime.adapters;
     port = config.awsPort;
     host = config.awsHost;
+  } else if (config.appMode === 'cloud') {
+    const runtime = bootstrapCloudAdapters();
+    for (const key of ['JWT_SECRET', 'FINGERPRINT_KEY']) process.env[key] = runtime.config.get(key);
+    setPool(runtime.pool);
+    setAdapters(runtime.adapters);
+    setActivityGate(runtime.gate);
+    runtime.startBackground((err) => logger.error({ err }, 'scheduler poll failed'));
+    if (config.workerInProcess) await startInProcessWorker(runtime);
+    adapters = runtime.adapters;
+    port = config.awsPort;
+    host = config.cloudHost;
   } else {
     checkRequiredConfig();
     adapters = getAdapters();
