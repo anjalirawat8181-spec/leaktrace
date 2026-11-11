@@ -33,3 +33,8 @@ PLAN.local.md
 .claude/
 CLAUDE.md
 PLAN.local.md
+
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

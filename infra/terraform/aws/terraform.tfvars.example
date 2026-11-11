@@ -1,0 +1,14 @@
+region        = "ap-south-1"
+name          = "leaktrace"
+bucket_suffix = "choose-a-unique-suffix"
+
+api_http_cidrs        = ["0.0.0.0/0"]
+alert_emails          = ["you@example.com"]
+evidence_cors_origins = []
+
+db_admin_password = "generate-a-long-random-value"
+db_app_password   = "generate-a-long-random-value"
+jwt_secret        = "generate-a-long-random-value"
+fingerprint_key   = "generate-once-and-never-change"
+
+account_id = ""
