@@ -44,6 +44,12 @@ function normalizeClip(clip) {
     ff(['-i', src, '-vf', `${norm}${captionFixFilter(clip, total)}`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
     return { out, marks: [], total };
   }
+  let source = src;
+  const fixes = captionFixFilter(clip, total);
+  if (fixes) {
+    source = path.join(WORK, `${clip.name}-captions.mp4`);
+    ff(['-i', src, '-vf', `${fixes.slice(1)},format=yuv420p`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', source]);
+  }
   const parts = [];
   const filters = [];
   let cursor = 0;
@@ -66,7 +72,7 @@ function normalizeClip(clip) {
   }
   addPlain(cursor, total);
   filters.push(`${parts.join('')}concat=n=${parts.length}:v=1:a=0[v]`);
-  ff(['-i', src, '-filter_complex', filters.join(';'), '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
+  ff(['-i', source, '-filter_complex', filters.join(';'), '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
   return { out, marks, total };
 }
 
