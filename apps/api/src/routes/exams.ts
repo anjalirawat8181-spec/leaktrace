@@ -9,6 +9,7 @@ import { getAdapters } from '../adapters';
 import { requireAuth, requireRole } from '../auth';
 import { config } from '../config';
 import { audit, getPool, query } from '../db';
+import { demoLimit } from '../limits';
 import { wordDiff } from '../diff';
 import { logger } from '../logger';
 import { closeScheduleName, releaseScheduleName } from '../time';
@@ -78,10 +79,16 @@ examsRouter.get('/', requireRole('CONTROLLER', 'AUDITOR'), async (_req, res) => 
   res.json(rows.map(examJson));
 });
 
-examsRouter.post('/', requireRole('CONTROLLER'), async (req, res) => {
+examsRouter.post('/', requireRole('CONTROLLER'), demoLimit('create exam', 10), async (req, res) => {
   const parsed = examSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid exam', issues: parsed.error.issues });
   const d = parsed.data;
+  if (config.demoMode) {
+    const [{ n }] = await query('SELECT count(*)::int AS n FROM exams');
+    if (n >= config.demoMaxExams) {
+      return res.status(429).json({ error: `The public demo allows ${config.demoMaxExams} exams until the nightly reset. Delete one to make room.` });
+    }
+  }
   const [row] = await query(
     `INSERT INTO exams (title, subject, starts_at, duration_min, release_lead_min, close_after_min, created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -131,6 +138,9 @@ examsRouter.put('/:id/template',requireRole('CONTROLLER'), async (req, res) => {
   }
   const body = templateSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: 'Invalid template', issues: body.error.issues });
+  if (config.demoMode && body.data.source.length > config.demoMaxPaperChars) {
+    return res.status(413).json({ error: `The public demo accepts papers up to ${config.demoMaxPaperChars} characters` });
+  }
 
   let parsed: ParsedTemplate;
   try {

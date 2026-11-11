@@ -4,6 +4,9 @@ import rateLimit from 'express-rate-limit';
 import { loginSchema } from '@leaktrace/shared';
 import { COOKIE_NAME, clientIp, requireAuth, signSession } from '../auth';
 import { audit, query } from '../db';
+import { config } from '../config';
+import { DEMO_USERS } from '../demo';
+import { demoLimit } from '../limits';
 
 export const authRouter = Router();
 
@@ -36,6 +39,29 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
     maxAge: 8 * 3600 * 1000,
   });
   await audit(user.id, 'LOGIN', 'user', user.id, { ip: clientIp(req) });
+  res.json({
+    id: user.id, email: user.email, name: user.name, role: user.role, centreId: user.centre_id,
+  });
+});
+
+authRouter.get('/demo-config', (_req, res) => {
+  res.json({ demo: config.demoMode });
+});
+
+authRouter.post('/demo-login', demoLimit('sign-in', 20), async (req, res) => {
+  if (!config.demoMode) return res.status(404).json({ error: 'Not found' });
+  const role = typeof req.body?.role === 'string' ? req.body.role : '';
+  if (!Object.prototype.hasOwnProperty.call(DEMO_USERS, role)) return res.status(400).json({ error: 'Choose a demo role' });
+  const email = DEMO_USERS[role as keyof typeof DEMO_USERS];
+  const user = (await query('SELECT * FROM users WHERE lower(email) = lower($1)', [email]))[0];
+  if (!user) return res.status(503).json({ error: 'The demo data is being reset, try again in a moment' });
+  res.cookie(COOKIE_NAME, signSession(user.id), {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: req.secure,
+    maxAge: 8 * 3600 * 1000,
+  });
+  await audit(user.id, 'LOGIN', 'user', user.id, { ip: clientIp(req), demo: true });
   res.json({
     id: user.id, email: user.email, name: user.name, role: user.role, centreId: user.centre_id,
   });

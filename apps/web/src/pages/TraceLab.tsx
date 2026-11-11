@@ -41,7 +41,7 @@ export default function TraceLabPage({ user }: { user: User }) {
       if (photo) {
         const sha256 = await sha256Hex(photo);
         const { url } = await api<{ url: string }>(`/trace/cases/${created.id}/evidence-url`, {
-          method: 'POST', json: { sha256, contentType: photo.type },
+          method: 'POST', json: { sha256, contentType: photo.type, bytes: photo.size },
         });
         const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': photo.type }, body: photo });
         if (!put.ok) throw new Error('Evidence upload failed');

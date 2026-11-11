@@ -7,7 +7,9 @@ import { getAdapters } from '../adapters';
 import { requireAuth, requireRole } from '../auth';
 import { config } from '../config';
 import { logger } from '../logger';
+import type { PoolClient } from 'pg';
 import { audit, getPool, query } from '../db';
+import { demoLimit } from '../limits';
 
 export const generationRouter = Router();
 generationRouter.use(requireAuth, requireRole('CONTROLLER'));
@@ -43,7 +45,29 @@ async function roomJobs(examId: string): Promise<RoomJob[]> {
 
 class QueueSendError extends Error {}
 
-async function enqueueJob(examId: string, rerender: boolean): Promise<{ jobId: string; rooms: number; copies: number }> {
+export async function insertCopies(
+  client: PoolClient,
+  examId: string,
+  rooms: Array<{ id: string; centre_id: string; seats: number }>,
+  parsed: ParsedTemplate,
+  vectors: number[][],
+): Promise<void> {
+  let serial = 0;
+  for (const room of rooms) {
+    for (let seat = 1; seat <= room.seats; seat++) {
+      const vector = vectors[serial];
+      serial++;
+      await client.query(
+        `INSERT INTO copies (exam_id, centre_id, room_id, seat_no, serial, visible_code, choice_vector, answer_key)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [examId, room.centre_id, room.id, seat, serial, visibleCode(serial, config.fingerprintKey),
+          vector, JSON.stringify(buildAnswerKey(parsed.points, vector))],
+      );
+    }
+  }
+}
+
+export async function enqueueJob(examId: string, rerender: boolean): Promise<{ jobId: string; rooms: number; copies: number }> {
   const jobs = await roomJobs(examId);
   const copies = jobs.reduce((n, j) => n + j.copyIds.length, 0);
   const [job] = await query(
@@ -64,7 +88,7 @@ async function enqueueJob(examId: string, rerender: boolean): Promise<{ jobId: s
   return { jobId: job.id, rooms: jobs.length, copies };
 }
 
-generationRouter.post('/:id/generate', async (req, res) => {
+generationRouter.post('/:id/generate', demoLimit('generate', 6), async (req, res) => {
   const exam = await loadExam(req.params.id);
   if (!exam) return res.status(404).json({ error: 'Exam not found' });
   if (exam.status !== 'DRAFT') {
@@ -101,19 +125,7 @@ generationRouter.post('/:id/generate', async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Generation already started' });
     }
-    let serial = 0;
-    for (const room of rooms) {
-      for (let seat = 1; seat <= room.seats; seat++) {
-        const vector = vectors[serial];
-        serial++;
-        await client.query(
-          `INSERT INTO copies (exam_id, centre_id, room_id, seat_no, serial, visible_code, choice_vector, answer_key)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [exam.id, room.centre_id, room.id, seat, serial, visibleCode(serial, config.fingerprintKey),
-            vector, JSON.stringify(buildAnswerKey(parsed.points, vector))],
-        );
-      }
-    }
+    await insertCopies(client, exam.id, rooms, parsed, vectors);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth';
+import { demoResetAt } from '../demo';
+import { config } from '../config';
 import { query } from '../db';
 
 export const auditRouter = Router();
@@ -11,6 +13,7 @@ auditRouter.get('/', async (req, res) => {
   const examId = typeof req.query.examId === 'string' && UUID.test(req.query.examId) ? req.query.examId : null;
   const type = typeof req.query.type === 'string' && req.query.type ? req.query.type : null;
 
+  const since = config.demoMode ? await demoResetAt() : null;
   const rows = await query(
     `SELECT * FROM (
        SELECT a.id::text, a.at, u.name AS actor, a.action, a.entity, a.entity_id, a.details,
@@ -26,8 +29,9 @@ auditRouter.get('/', async (req, res) => {
        FROM downloads d LEFT JOIN users u ON u.id = d.user_id
      ) feed
      WHERE ($1::text IS NULL OR exam_id = $1) AND ($2::text IS NULL OR action = $2)
+       AND ($3::timestamptz IS NULL OR at >= $3)
      ORDER BY at DESC LIMIT 500`,
-    [examId, type],
+    [examId, type, since],
   );
   res.json(rows.map((r) => ({
     id: r.id, at: new Date(r.at).toISOString(), actor: r.actor ?? 'system', action: r.action,
