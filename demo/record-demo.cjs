@@ -320,7 +320,7 @@ document.title = 'ready';
   await showSubtitle(p3, 'Step 10 – The matching differences are highlighted as evidence');
   await sleep(6000);
   await moveAndClick(p3, p3.getByRole('link', { name: 'Alerts' }));
-  await showSubtitle(p3, 'Step 11 – The leak alert in the notification outbox');
+  await showSubtitle(p3, 'Step 11 – On AWS the leak alert is emailed through SNS, so this in-app outbox stays empty');
   await sleep(5000);
   await closeClip(a2);
 
@@ -331,7 +331,7 @@ document.title = 'ready';
   await p4.getByText('Audit log').first().waitFor();
   await moveAndClick(p4, p4.getByRole('link', { name: 'Audit log' }));
   await sleep(3000);
-  await showSubtitle(p4, 'Step 12 – Blocked attempts are shown in red');
+  await showSubtitle(p4, 'Step 12 – Every sign-in, release and download is recorded');
   await p4.mouse.wheel(0, 700);
   await sleep(5000);
   await closeClip(c);
