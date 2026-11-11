@@ -2,11 +2,20 @@ import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectComm
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Storage } from '../interfaces';
 
+export interface S3StorageOptions {
+  endpoint?: string;
+  credentials?: { accessKeyId: string; secretAccessKey: string };
+}
+
 export class S3Storage implements Storage {
   private readonly client: S3Client;
 
-  constructor(private readonly bucket: string, region: string) {
-    this.client = new S3Client({ region });
+  constructor(private readonly bucket: string, region: string, options: S3StorageOptions = {}) {
+    this.client = new S3Client({
+      region,
+      ...(options.endpoint ? { endpoint: options.endpoint, forcePathStyle: true } : {}),
+      ...(options.credentials ? { credentials: options.credentials } : {}),
+    });
   }
 
   async put(key: string, body: Buffer | Uint8Array | string, contentType: string): Promise<void> {

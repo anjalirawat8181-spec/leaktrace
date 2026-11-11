@@ -10,7 +10,7 @@ import {
 
 interface GenerationStatus {
   examStatus: string;
-  mode: 'aws' | 'local';
+  mode: 'aws' | 'cloud' | 'local';
   job: { id: string; total: number; done: number; failed: number; status: string; lastError: string | null; startedAt: string } | null;
   queueDepth: number | null;
   deadLetterDepth: number;
@@ -112,7 +112,9 @@ export default function GenerationPage() {
                 <Notice tone="warn" icon="clock">
                   {st.mode === 'aws'
                     ? 'No worker running yet. One starts automatically within 1–4 minutes after you click Generate.'
-                    : <>No worker is running on this computer. Start one with: <span className="data-num">npm run dev --workspace @leaktrace/worker</span></>}
+                    : st.mode === 'cloud'
+                      ? 'The worker is starting up. This usually takes a few seconds.'
+                      : <>No worker is running on this computer. Start one with: <span className="data-num">npm run dev --workspace @leaktrace/worker</span></>}
                 </Notice>
               )}
               {st.warnings.length > 0 && (
