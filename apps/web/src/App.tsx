@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { api, type User } from './api';
 import { AppShell } from './components/AppShell';
+import { DemoBanner } from './components/DemoBanner';
 import { Skeleton } from './components/ui';
 import AuditPage from './pages/Audit';
 import CentrePortalPage from './pages/CentrePortal';
@@ -42,6 +43,8 @@ export default function App() {
   const controller = user.role === 'CONTROLLER';
 
   return (
+    <>
+    <DemoBanner />
     <AppShell user={user} onLogout={logout}>
       <Routes>
         <Route path="/" element={user.role === 'SUPERINTENDENT' ? <CentrePortalPage /> : <DashboardPage user={user} />} />
@@ -56,5 +59,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </AppShell>
+    </>
   );
 }

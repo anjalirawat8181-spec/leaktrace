@@ -8,6 +8,11 @@ export const config = {
   get appMode(): 'aws' | 'cloud' | 'local' {
     return process.env.APP_MODE === 'aws' ? 'aws' : process.env.APP_MODE === 'cloud' ? 'cloud' : 'local';
   },
+  get demoMode() { return process.env.DEMO_MODE === 'true'; },
+  get demoResetToken() { return process.env.DEMO_RESET_TOKEN; },
+  get demoMaxExams() { return Number(process.env.DEMO_MAX_EXAMS ?? 12); },
+  get demoMaxPaperChars() { return Number(process.env.DEMO_MAX_PAPER_CHARS ?? 8000); },
+  get demoMaxUploadBytes() { return Number(process.env.DEMO_MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024); },
   get workerInProcess() { return process.env.WORKER_IN_PROCESS === 'true'; },
   get databaseUrl() { return required('DATABASE_URL'); },
   get jwtSecret() { return required('JWT_SECRET'); },

@@ -7,6 +7,7 @@ import { logger } from './logger';
 import { touchActivity } from './activity';
 import { query } from './db';
 import { auditRouter, notificationsRouter } from './routes/audit';
+import { adminRouter } from './demo';
 import { authRouter } from './routes/auth';
 import { centreRouter } from './routes/centre';
 import { centresRouter } from './routes/centres';
@@ -35,6 +36,7 @@ export function createApp() {
     res.json({ status: 'ok' });
   });
   app.use('/api/auth', authRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/api/centres', centresRouter);
   app.use('/api/exams', examsRouter);
   app.use('/api/exams', generationRouter);

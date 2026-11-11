@@ -6,7 +6,9 @@ import {
 } from '@leaktrace/fingerprint';
 import { getAdapters } from '../adapters';
 import { requireAuth, requireRole } from '../auth';
+import { config } from '../config';
 import { audit, getPool, query } from '../db';
+import { demoLimit } from '../limits';
 
 export const traceRouter = Router();
 traceRouter.use(requireAuth);
@@ -22,6 +24,7 @@ const createSchema = z.object({
 });
 const evidenceSchema = z.object({
   sha256: z.string().regex(SHA256),
+  bytes: z.number().int().positive().optional(),
   contentType: z.string().refine((t) => IMAGE_TYPES.includes(t), 'Evidence must be a JPEG, PNG or WebP image'),
 });
 
@@ -119,11 +122,14 @@ traceRouter.post('/cases', requireRole('CONTROLLER'), async (req, res) => {
   res.status(201).json(caseJson(row));
 });
 
-traceRouter.post('/cases/:id/evidence-url', requireRole('CONTROLLER'), async (req, res) => {
+traceRouter.post('/cases/:id/evidence-url', requireRole('CONTROLLER'), demoLimit('upload', 10), async (req, res) => {
   const c = await loadCase(req.params.id);
   if (!c) return res.status(404).json({ error: 'Case not found' });
   const body = evidenceSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: body.error.issues[0].message });
+  if (config.demoMode && (body.data.bytes === undefined || body.data.bytes > config.demoMaxUploadBytes)) {
+    return res.status(413).json({ error: `The public demo accepts photos up to ${Math.round(config.demoMaxUploadBytes / 1048576)} MB` });
+  }
   const ext = body.data.contentType.split('/')[1];
   const key = `evidence/${c.id}/photo.${ext}`;
   await query('UPDATE trace_cases SET evidence_key=$2, evidence_sha256=$3 WHERE id=$1', [
@@ -134,7 +140,7 @@ traceRouter.post('/cases/:id/evidence-url', requireRole('CONTROLLER'), async (re
   res.json({ url, key });
 });
 
-traceRouter.post('/cases/:id/run', requireRole('CONTROLLER'), async (req, res) => {
+traceRouter.post('/cases/:id/run', requireRole('CONTROLLER'), demoLimit('trace', 20), async (req, res) => {
   const c = await loadCase(req.params.id);
   if (!c) return res.status(404).json({ error: 'Case not found' });
   const adapters = getAdapters();
