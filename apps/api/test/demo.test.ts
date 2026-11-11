@@ -144,6 +144,23 @@ describe('public demo mode', async () => {
     delete process.env.DEMO_MAX_EXAMS;
   });
 
+  it('ignores a spoofed X-Forwarded-For unless proxies are trusted, and honours a hop count', async () => {
+    process.env.DEMO_MODE = 'true';
+    delete process.env.TRUST_PROXY;
+    const plain = createApp();
+    await request(plain).post('/api/auth/demo-login').set('X-Forwarded-For', '203.0.113.9').send({ role: 'auditor' });
+    const [first] = await query("SELECT details->>'ip' AS ip FROM audit_events WHERE details->>'demo'='true' ORDER BY at DESC LIMIT 1");
+    expect(first.ip).not.toContain('203.0.113.9');
+
+    process.env.TRUST_PROXY = '2';
+    const behind = createApp();
+    const hop = await request(behind).post('/api/auth/demo-login').set('X-Forwarded-For', '203.0.113.9, 198.51.100.7').send({ role: 'auditor' });
+    expect(hop.status).toBe(200);
+    const [second] = await query("SELECT details->>'ip' AS ip FROM audit_events WHERE details->>'demo'='true' ORDER BY at DESC LIMIT 1");
+    expect(second.ip).toBe('203.0.113.9');
+    delete process.env.TRUST_PROXY;
+  });
+
   it('rate limits generation on the public demo', async () => {
     process.env.DEMO_MODE = 'true';
     const agent = request.agent(app);

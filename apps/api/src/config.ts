@@ -18,9 +18,10 @@ export const config = {
   get jwtSecret() { return required('JWT_SECRET'); },
   get fingerprintKey() { return required('FINGERPRINT_KEY'); },
   get maxCopies() { return Number(process.env.MAX_COPIES_PER_EXAM ?? 20); },
-  get trustProxy(): boolean | string {
+  get trustProxy(): boolean | number | string {
     const v = process.env.TRUST_PROXY;
     if (!v || v === 'false') return false;
+    if (/^[0-9]+$/.test(v)) return Number(v);
     return v === 'true' ? true : v;
   },
   get awsPort() { return Number(process.env.PORT ?? 3000); },
