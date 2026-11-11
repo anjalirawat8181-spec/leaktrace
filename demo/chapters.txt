@@ -1,0 +1,14 @@
+00:00 Title
+00:11 Controller signs in
+00:12 Exams dashboard with the 5-step bar
+00:19 Create a fresh exam
+00:30 Paper editor: variations are written as {{this|that}}
+00:39 Spot the difference between two copies
+00:48 Generate one unique PDF per seat
+01:30 Schedule release and close times (India time)
+01:46 Superintendent (separate browser): locked until the release time
+02:13 Download papers: short-lived signed links, one PDF per room
+02:22 Controller: Find a leak
+02:46 The leak alert in the notification outbox
+02:57 Auditor: read-only audit log
+03:10 End
