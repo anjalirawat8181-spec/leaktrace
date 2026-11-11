@@ -63,7 +63,7 @@ Measured on the demo paper (20 copies; the leak is the first *n* questions of on
 | 2 | 16 | 60 of 60 | 0 |
 | 3 to 8 | 24 to 65 | 60 of 60 in every row | 0 |
 
-Across all 480 trials the tracer never named a wrong copy. This is a measurement on clean text; photos, OCR errors and deliberate rewording are not covered (see *Limitations*).
+Across all 480 trials the tracer never named a wrong copy. This is a measurement on clean text; photos, OCR errors and deliberate rewording are not covered (see *Limitations*). Reproduce it with `npm run build:packages && node scripts/trace-accuracy.cjs`.
 
 ## Roles and features
 
