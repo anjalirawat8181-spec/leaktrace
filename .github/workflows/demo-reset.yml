@@ -1,0 +1,19 @@
+name: Reset public demo
+
+on:
+  schedule:
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call reset-demo
+        env:
+          API_URL: ${{ vars.API_URL }}
+          DEMO_RESET_TOKEN: ${{ secrets.DEMO_RESET_TOKEN }}
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 20 --retry-all-errors --max-time 120 \
+            -X POST -H "Authorization: Bearer ${DEMO_RESET_TOKEN}" "${API_URL}/api/admin/reset-demo"
