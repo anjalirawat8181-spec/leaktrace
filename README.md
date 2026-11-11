@@ -94,7 +94,7 @@ Vercel serves the web app and forwards `/api` to Render, which runs the API and 
 
 ### AWS reference deployment
 
-It ran in `ap-south-1` (Mumbai) and was torn down after the demo to save cost. It can be redeployed with [infra/terraform/aws](infra/terraform/aws).
+It was deployed in `ap-south-1` (Mumbai) and can be redeployed with [infra/terraform/aws](infra/terraform/aws). The live demo does not depend on it.
 
 [![AWS architecture](docs/architecture/leaktrace-aws-architecture.png)](docs/architecture/index.html)
 
