@@ -51,7 +51,7 @@ export default function LoginPage() {
           <Card className="mb-4">
             <h2 className="text-lg">Try the live demo</h2>
             <p className="mt-1 text-sm text-fg-muted">One click signs you in with sample data. No account needed.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid gap-2">
               <Button variant="primary" onClick={() => tryAs('controller')} disabled={busy}>Try as Controller</Button>
               <Button onClick={() => tryAs('superintendent')} disabled={busy}>Try as Superintendent</Button>
               <Button onClick={() => tryAs('auditor')} disabled={busy}>Try as Auditor</Button>
