@@ -13,9 +13,6 @@ release/
 .DS_Store
 **/.DS_Store
 .agents/
-brag-output/*
-!brag-output/brag.mp4
-!brag-output/share-copy.txt
 skills-lock.json
 
 # deploy secrets & local state
@@ -38,3 +35,4 @@ PLAN.local.md
 *.tfstate
 *.tfstate.*
 crash.log
+brag-output/

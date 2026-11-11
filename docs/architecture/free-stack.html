@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LeakTrace free-stack architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#EEF1F6; --surface:#FFFFFF; --surface-2:#F6F8FB; --ink:#132033; --muted:#5B6677; --line:#C9D2DF; --accent:#2B58E6;
+  --compute:#D46A0A; --storage:#2E8740; --db:#3B57D6; --integ:#C02E68; --net:#6B48D8; --ext:#4A5466;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif; --f-body:"IBM Plex Sans","Segoe UI",Arial,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C111B; --surface:#151C29; --surface-2:#1B2434; --ink:#E5EBF5; --muted:#97A3B6; --line:#2C374A; --accent:#7C9BFF;
+  --compute:#F2953F; --storage:#5CC071; --db:#7D93FF; --integ:#F06A9C; --net:#9C85F5; --ext:#8D97A8; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0C111B; --surface:#151C29; --surface-2:#1B2434; --ink:#E5EBF5; --muted:#97A3B6; --line:#2C374A; --accent:#7C9BFF;
+  --compute:#F2953F; --storage:#5CC071; --db:#7D93FF; --integ:#F06A9C; --net:#9C85F5; --ext:#8D97A8; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-body);font-size:15px;line-height:1.5;padding:20px max(16px,env(safe-area-inset-left,0px)) 40px}
+.wrap{max-width:1500px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:72ch}
+.tag{font-family:var(--f-mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--surface)}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.scroll{overflow-x:auto}
+svg.dia{display:block;width:100%;min-width:980px;height:auto}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+svg .mono{font-family:var(--f-mono)}
+svg .muted{fill:var(--muted)}
+.node{fill:var(--surface-2);stroke-width:2}
+.zone{fill:none;stroke-width:1.5;stroke-dasharray:6 5}
+.edge{fill:none;stroke:var(--muted);stroke-width:2}
+.edge.dash{stroke-dasharray:6 5}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.card h2{font-family:var(--f-display);font-size:16px;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{font-family:var(--f-mono);font-size:12px;white-space:nowrap;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);padding:10px 14px;border-top:1px solid var(--line)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.sw{width:14px;height:14px;border-radius:4px;display:inline-block}
+ol{margin:0;padding-left:20px;font-size:13.5px}
+li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>LeakTrace on the free stack</h1>
+    <p class="sub">The public demo runs on free tiers only. The same code runs here as on AWS; <code>APP_MODE=cloud</code> swaps the adapters behind <code>packages/adapters</code>, and the queue and scheduler live in Postgres.</p>
+  </div>
+  <span class="tag">Vercel · Render (Singapore) · Neon · Cloudflare R2</span>
+</header>
+
+<div class="stage">
+<div class="scroll">
+<svg class="dia" viewBox="0 0 1600 820" role="img" aria-label="LeakTrace free-stack architecture diagram">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+  </defs>
+
+  <rect class="zone" x="715" y="150" width="480" height="470" rx="14" stroke="var(--compute)"/>
+  <text x="735" y="176" font-size="14" font-weight="700" fill="var(--compute)" style="fill:var(--compute)">Render Free web service · one process</text>
+
+  <rect class="node" x="40" y="330" width="220" height="130" rx="12" stroke="var(--ext)"/>
+  <text x="150" y="372" text-anchor="middle" font-size="18" font-weight="700">Visitor's browser</text>
+  <text x="150" y="398" text-anchor="middle" font-size="13" class="muted">React app</text>
+  <text x="150" y="420" text-anchor="middle" font-size="13" class="muted">one-click demo sign-in</text>
+
+  <rect class="node" x="340" y="290" width="270" height="210" rx="12" stroke="var(--net)"/>
+  <text x="475" y="330" text-anchor="middle" font-size="18" font-weight="700">Vercel</text>
+  <text x="475" y="354" text-anchor="middle" font-size="13" class="muted">static web build (apps/web)</text>
+  <text x="475" y="396" text-anchor="middle" font-size="13" class="mono">/api/*  →  Render</text>
+  <text x="475" y="418" text-anchor="middle" font-size="13" class="muted">everything else → index.html</text>
+  <text x="475" y="456" text-anchor="middle" font-size="13" class="muted">one origin: cookies just work</text>
+
+  <rect class="node" x="745" y="205" width="420" height="120" rx="10" stroke="var(--compute)"/>
+  <text x="955" y="238" text-anchor="middle" font-size="17" font-weight="700">Express API</text>
+  <text x="955" y="262" text-anchor="middle" font-size="13" class="muted">auth, RBAC, zod validation, audit</text>
+  <text x="955" y="284" text-anchor="middle" font-size="13" class="muted">demo mode: roles, caps, rate limits</text>
+  <text x="955" y="306" text-anchor="middle" font-size="13" class="mono">POST /api/admin/reset-demo</text>
+
+  <rect class="node" x="745" y="345" width="420" height="110" rx="10" stroke="var(--compute)"/>
+  <text x="955" y="378" text-anchor="middle" font-size="17" font-weight="700">Worker loop (in-process)</text>
+  <text x="955" y="402" text-anchor="middle" font-size="13" class="muted">renders and merges each room's PDFs</text>
+  <text x="955" y="424" text-anchor="middle" font-size="13" class="muted">WORKER_IN_PROCESS=true, no auto scaling</text>
+
+  <rect class="node" x="745" y="475" width="420" height="110" rx="10" stroke="var(--compute)"/>
+  <text x="955" y="508" text-anchor="middle" font-size="17" font-weight="700">Queue and scheduler polling</text>
+  <text x="955" y="532" text-anchor="middle" font-size="13" class="muted">Postgres-backed adapters, 10 s tick</text>
+  <text x="955" y="554" text-anchor="middle" font-size="13" class="muted">idle gate: stops after 10 min with no visitor</text>
+
+  <rect class="node" x="1330" y="120" width="230" height="250" rx="12" stroke="var(--db)"/>
+  <text x="1445" y="158" text-anchor="middle" font-size="18" font-weight="700">Neon Postgres</text>
+  <text x="1445" y="184" text-anchor="middle" font-size="13" class="muted">exams, copies, fingerprints</text>
+  <text x="1445" y="206" text-anchor="middle" font-size="13" class="muted">local_queue (generation)</text>
+  <text x="1445" y="228" text-anchor="middle" font-size="13" class="muted">local_schedules (release, close)</text>
+  <text x="1445" y="250" text-anchor="middle" font-size="13" class="muted">alerts outbox</text>
+  <text x="1445" y="272" text-anchor="middle" font-size="13" class="muted">append-only audit log</text>
+  <text x="1445" y="316" text-anchor="middle" font-size="13" class="mono">pooled · SSL · max 5 connections</text>
+  <text x="1445" y="338" text-anchor="middle" font-size="13" class="mono">direct URL for migrations</text>
+
+  <rect class="node" x="1330" y="440" width="230" height="170" rx="12" stroke="var(--storage)"/>
+  <text x="1445" y="478" text-anchor="middle" font-size="18" font-weight="700">Cloudflare R2</text>
+  <text x="1445" y="504" text-anchor="middle" font-size="13" class="muted">generated PDFs, evidence photos</text>
+  <text x="1445" y="526" text-anchor="middle" font-size="13" class="muted">private bucket</text>
+  <text x="1445" y="560" text-anchor="middle" font-size="13" class="mono">S3 API, region auto</text>
+  <text x="1445" y="582" text-anchor="middle" font-size="13" class="mono">120 s signed links</text>
+
+  <rect class="node" x="745" y="30" width="420" height="90" rx="12" stroke="var(--integ)"/>
+  <text x="955" y="62" text-anchor="middle" font-size="18" font-weight="700">GitHub Actions</text>
+  <text x="955" y="88" text-anchor="middle" font-size="13" class="muted">CI on every pull request · reset 19:00 UTC · keep-warm every 10 min</text>
+
+  <path class="edge" marker-end="url(#arr)" d="M260 395 H340"/>
+  <text x="300" y="384" text-anchor="middle" font-size="12" class="mono muted">HTTPS</text>
+  <path class="edge" marker-end="url(#arr)" d="M610 395 H745"/>
+  <text x="678" y="384" text-anchor="middle" font-size="12" class="mono muted">/api rewrite</text>
+  <path class="edge" marker-end="url(#arr)" d="M1165 265 C1250 265 1250 230 1330 230"/>
+  <text x="1248" y="212" text-anchor="middle" font-size="12" class="mono muted">SQL</text>
+  <path class="edge" marker-end="url(#arr)" d="M1165 400 C1260 400 1260 520 1330 520"/>
+  <text x="1262" y="468" text-anchor="middle" font-size="12" class="mono muted">put / get</text>
+  <path class="edge dash" marker-end="url(#arr)" d="M150 460 V700 H1445 V610"/>
+  <text x="700" y="722" text-anchor="middle" font-size="12" class="mono muted">presigned GET (PDF download) and PUT (evidence photo), direct from the browser; needs the R2 CORS rule</text>
+  <path class="edge dash" marker-end="url(#arr)" d="M955 120 V205"/>
+  <text x="975" y="140" font-size="12" class="mono muted">reset-demo · /api/health</text>
+  <path class="edge" marker-end="url(#arr)" d="M955 455 V475"/>
+</svg>
+</div>
+<div class="legend">
+  <span><i class="sw" style="background:var(--ext)"></i>Client</span>
+  <span><i class="sw" style="background:var(--net)"></i>Static hosting</span>
+  <span><i class="sw" style="background:var(--compute)"></i>Compute</span>
+  <span><i class="sw" style="background:var(--db)"></i>Database</span>
+  <span><i class="sw" style="background:var(--storage)"></i>Object storage</span>
+  <span><i class="sw" style="background:var(--integ)"></i>Automation</span>
+</div>
+</div>
+
+<div class="facts">
+  <section class="card">
+    <h2>Main flows</h2>
+    <ol>
+      <li><b>Generate:</b> the controller clicks Generate, the API saves 20 copies in Neon and queues one job per room, the in-process worker renders and merges each room's PDFs and puts them in R2. About 28 seconds for 20 copies.</li>
+      <li><b>Release and download:</b> the schedule is a row in Neon; the API's poller fires it, marks the exam released, and a superintendent downloads through a 120 second signed R2 link.</li>
+      <li><b>Leak trace:</b> leaked text is compared with every stored fingerprint, with typo tolerance, and names the copy, centre, room, seat and invigilator.</li>
+      <li><b>Nightly reset:</b> a workflow calls <code>reset-demo</code>, which wipes the demo data and R2 files and seeds a fresh dataset.</li>
+    </ol>
+  </section>
+  <section class="card">
+    <h2>What each AWS service became</h2>
+    <table>
+      <tr><td>EC2 + nginx</td><td>Vercel (web) and Render (API)</td></tr>
+      <tr><td>EC2 Auto Scaling</td><td>worker loop inside the API process</td></tr>
+      <tr><td>RDS PostgreSQL</td><td>Neon Postgres</td></tr>
+      <tr><td>S3</td><td>Cloudflare R2 (same S3 adapter, other endpoint)</td></tr>
+      <tr><td>SQS</td><td>Postgres table <code>local_queue</code></td></tr>
+      <tr><td>EventBridge Scheduler</td><td>Postgres table <code>local_schedules</code></td></tr>
+      <tr><td>SNS</td><td>alerts outbox table</td></tr>
+      <tr><td>SSM Parameter Store</td><td>environment variables</td></tr>
+      <tr><td>CloudWatch alarms</td><td>none needed</td></tr>
+    </table>
+  </section>
+  <section class="card">
+    <h2>Limits that shape the design</h2>
+    <ol>
+      <li>Render Free sleeps after 15 minutes without traffic, so a keep-warm ping runs during the day.</li>
+      <li>Neon has a monthly compute allowance, so the queue and scheduler stop polling when nobody is using the site.</li>
+      <li>One small process does everything, so the demo caps exams, paper length and photo size.</li>
+      <li>No authenticated hop between Vercel and Render, so limits have a per-address and a global tier.</li>
+    </ol>
+  </section>
+</div>
+</div>
+</body>
+</html>

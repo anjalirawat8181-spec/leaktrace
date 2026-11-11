@@ -2,6 +2,7 @@
 
 ![LeakTrace AWS architecture](architecture/leaktrace-aws-architecture.png)
 
+- **Free-stack version:** [`architecture/free-stack.html`](architecture/free-stack.html) shows the same system on Vercel, Render, Neon and Cloudflare R2 (`APP_MODE=cloud`); [PNG](architecture/leaktrace-free-stack-architecture.png).
 - **Interactive explorer:** open [`architecture/index.html`](architecture/index.html) in a browser (or via GitHub Pages). Click any service for details, or play the four request flows step by step.
 - **Print / zoom:** [`architecture/leaktrace-aws-architecture.pdf`](architecture/leaktrace-aws-architecture.pdf)
 
